@@ -1,16 +1,21 @@
 # mrmpanel
 
-CWP-like Docker hosting panel for fresh Linux servers.
+Docker hosting control panel for fresh Linux servers — sites, domains, mail,
+databases, DNS, SSL, and webmail from one admin UI.
 
-One host Docker engine, one reverse proxy (Traefik), one container per site/hostname, optional shared mail and SQL. No Docker-in-Docker.
+One host Docker engine, Traefik reverse proxy, one container per site hostname,
+optional shared mail/SQL/DNS. No Docker-in-Docker.
+
+**Current release:** 0.1.21  
+**Source:** https://github.com/cRaZyEyEs1987/mrmpanel
 
 ## Requirements
 
-- Fresh AlmaLinux/Rocky/RHEL 9–10 or Ubuntu 24.04
-- Root access
-- No conflicting web/mail/database/Docker services already installed
+- Fresh AlmaLinux / Rocky / RHEL 9–10 or Ubuntu 24.04
+- Root access (`sudo` is fine — the installing account becomes the file operator)
+- No conflicting web, mail, database, or Docker services already installed
 
-## Install (single file — downloads the rest)
+## Install
 
 On a **new** server:
 
@@ -18,13 +23,13 @@ On a **new** server:
 sudo bash -c "$(curl -fsSL https://mrmpanel.hostingandstuff.online/install.sh)" -- --all
 ```
 
-That bootstrap script pulls `mrmpanel-latest.tar.gz` from the same host, then runs the full installer (prompts for hostname and admin password; skips the feature menu). On Alma/Rocky/RHEL 10, if a kernel reboot is required for Docker, the installer reboots and **finishes automatically** — no second command.
-
-Override mirror if needed:
+That bootstrap pulls `mrmpanel-latest.tar.gz` and runs the full installer
+(hostname + admin password prompts). On Alma/Rocky/RHEL 10, if Docker needs a
+kernel reboot, install resumes automatically after boot.
 
 ```bash
 export MRMPANEL_MIRROR=https://mrmpanel.hostingandstuff.online
-curl -fsSL "$MRMPANEL_MIRROR/install.sh" | sudo bash -s -- --web --mariadb
+curl -fsSL "$MRMPANEL_MIRROR/install.sh" | sudo bash -s -- --web --mail --mariadb
 ```
 
 ### Feature switches
@@ -33,35 +38,68 @@ curl -fsSL "$MRMPANEL_MIRROR/install.sh" | sudo bash -s -- --web --mariadb
 |------|---------|
 | `--all` | web + mail + mariadb + postgres + dns |
 | `--web` | Traefik + site hosting (default on) |
-| `--mail` | docker-mailserver |
+| `--mail` | docker-mailserver (+ Roundcube webmail when web is also on) |
 | `--mariadb` | shared MariaDB |
 | `--postgres` | shared PostgreSQL |
-| `--dns` | PowerDNS authoritative DNS (default on); ns1/ns2 from hostname |
+| `--dns` | PowerDNS authoritative DNS (default on) |
 | `--no-web` / `--no-mail` / `--no-dns` / … | disable a feature |
-| `--hostname FQDN` | set server hostname (skips interactive PTR flow) |
-| `--non-interactive` | no prompts (requires `--hostname` and admin password env) |
+| `--hostname FQDN` | set server hostname |
+| `--non-interactive` | no prompts (needs `--hostname` and `MRMPANEL_ADMIN_PASSWORD`) |
 
-Feature selection is written to `/var/lib/mrmpanel/features.json` and drives the panel UI.
+Features are stored in `/var/lib/mrmpanel/features.json`.
 
-## Publishing updates (on the build server)
+## What you get
+
+- **Admin panel** on `:8080`, with HTTPS on the server hostname via Traefik
+- **Hosting users** with jailed SSH/SFTP and `/home/<user>/…` layouts
+- **Domains** owned by accounts (including separately owned subdomains)
+- **Sites** — WordPress (auto-install), Laravel (Composer create-project),
+  PHP, Node, Python stacks
+- **Databases** — MariaDB / PostgreSQL, site-linked or standalone
+- **Mail** — mailboxes under `/home/<user>/<email>/maildir`
+- **Webmail** — one shared Roundcube at `https://<domain>/webmail/`
+- **DNS** — PowerDNS zones, MX/SPF/DKIM/DMARC helpers, Domains page record table
+- **SSL** — Let's Encrypt via Traefik; dashboard warnings + activate button
+- **Operator ACL** — the sudo account that installed the panel can manage all
+  `/home` files over SFTP without changing customer ownership
+
+## After install
+
+| Item | Location |
+|------|----------|
+| Panel | `http://<server-ip>:8080` (user `admin`) |
+| Panel HTTPS | `https://<hostname>/` (when web + public DNS are ready) |
+| Hosting users | same login URL → `/u/` |
+| Data | `/var/lib/mrmpanel/` |
+| App | `/opt/mrmpanel/` |
+| Client homes | `/home/<user>/{domains,config,mail,plugins,logs}` |
+| Webmail | `https://<managed-domain>/webmail/` |
+
+Firewall ports opened for selected features: `8080`; web `80/443`; mail
+`25/465/587/993`; MariaDB `3306`; Postgres `5432`; DNS `53/tcp+udp`.
+
+With DNS enabled, hostname `server.example.com` → nameservers
+`ns1.example.com` / `ns2.example.com` (same IP by default). Set glue at the
+registrar.
+
+## Docs
+
+- [Accounts, domains, sites, databases, and mail](docs/accounts-and-domains.md)
+- [First site](docs/first-site.md)
+- [DNS & PTR](docs/dns.md)
+- [SSL](docs/ssl.md)
+- [Webmail](docs/webmail.md)
+
+## Publishing updates (build / mirror host)
 
 ```bash
 bash scripts/publish-release.sh
 ```
 
-Publishes to `/var/www/mrmpanel-dist` for subdomain `mrmpanel.hostingandstuff.online` only (does not change other sites).
+Publishes to `/var/www/mrmpanel-dist` for `mrmpanel.hostingandstuff.online`.
 
-## After install
-
-- Panel: `http://<server-ip>:8080` (user `admin`, password shown at end of install)
-- Hosting users sign in at the same URL and land on `/u/`
-- Data: `/var/lib/mrmpanel/`
-- App: `/opt/mrmpanel/`
-- Client homes: `/home/<user>/{domains,config,mail,plugins,logs}`
-- Mailboxes (when mail enabled): `/home/<user>/<email@domain>/maildir` (Maildir); docker-mailserver reaches them via symlink from `/var/lib/mrmpanel/mail/data/`
-- Traefik (if web): ports 80/443 → client site containers
-- Installer opens host firewall ports for selected features (firewalld/ufw): panel `8080`; web `80/443`; mail `25/465/587/993`; MariaDB `3306`; Postgres `5432`; DNS `53/tcp+udp`
-- With DNS enabled: hostname `server.example.com` → nameservers `ns1.example.com` / `ns2.example.com` (same IP by default; editable in Settings). Set glue at your registrar.
+On an installed server, re-run the install script with `--force` (and the same
+features) to upgrade.
 
 ## Development
 
