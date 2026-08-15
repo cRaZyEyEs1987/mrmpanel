@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Users — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Hosting users</h1>
+  <p class="muted">Each user gets an OS account, a home jail, and a panel login (same password) for their own dashboard.</p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+<section class="card-form">
+  <h2>Create user</h2>
+  <form method="post" action="/users" class="grid-form">
+    <label>Username<input name="username" pattern="[a-z][a-z0-9_]{2,31}" required placeholder="alice"></label>
+    <label>Display name<input name="display_name" placeholder="Alice"></label>
+    <label>Password<input type="password" name="password" required></label>
+    <button type="submit">Create</button>
+  </form>
+</section>
+
+<table class="data">
+  <thead><tr><th>User</th><th>Home</th><th>Created</th></tr></thead>
+  <tbody>
+  {% for u in hosting_users %}
+    <tr><td>{{ u.username }}</td><td><code>{{ u.home }}</code></td><td>{{ u.created_at }}</td></tr>
+  {% else %}
+    <tr><td colspan="3" class="muted">No users yet</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

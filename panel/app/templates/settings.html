@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Global settings</h1>
+  <p class="muted">Server-wide options. Account-scoped Sites, Databases, and Mail follow the sidebar user selector.</p>
+</header>
+
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+<table class="data">
+  <tbody>
+    <tr><th>Hostname</th><td>{{ features.hostname }}</td></tr>
+    <tr><th>Public IP</th><td>{{ features.public_ip or '—' }}</td></tr>
+    <tr><th>Version</th><td>{{ features.version }}</td></tr>
+    <tr><th>Installed</th><td>{{ features.installed_at or '—' }}</td></tr>
+    <tr><th>Web</th><td>{{ 'yes' if features.web else 'no' }}</td></tr>
+    <tr><th>Mail</th><td>{{ 'yes' if features.mail else 'no' }}</td></tr>
+    <tr><th>MariaDB</th><td>{{ 'yes' if features.mariadb else 'no' }}</td></tr>
+    <tr><th>PostgreSQL</th><td>{{ 'yes' if features.postgres else 'no' }}</td></tr>
+    <tr><th>DNS</th><td>{{ 'yes' if features.dns else 'no' }}</td></tr>
+    <tr><th>ACME email</th><td>{{ features.acme_email or '—' }}</td></tr>
+  </tbody>
+</table>
+
+{% if features.mail %}
+<section class="card-form" style="margin-top:1.5rem">
+  <h2>Global mail authentication</h2>
+  <p class="muted">
+    These controls scan every managed domain first. Existing valid records are
+    kept. Missing records are published automatically only when this server
+    hosts the PowerDNS zone; external DNS is reported for manual action.
+    Turning a control off stops configuration checks but does not delete a
+    working DNS record.
+  </p>
+  <form method="post" action="/settings/mail-security" class="grid-form">
+    <label>
+      <input type="checkbox" name="enable_spf" {% if features.mail_security_spf %}checked{% endif %}>
+      Enable SPF checks and defaults
+    </label>
+    <label>
+      <input type="checkbox" name="enable_dkim" {% if features.mail_security_dkim %}checked{% endif %}>
+      Enable DKIM checks and generation
+    </label>
+    <label>
+      <input type="checkbox" name="enable_dmarc" {% if features.mail_security_dmarc %}checked{% endif %}>
+      Enable DMARC checks and policy
+    </label>
+    <label>DMARC policy
+      <select name="dmarc_policy">
+        <option value="quarantine" {% if features.mail_dmarc_policy == 'quarantine' %}selected{% endif %}>
+          Quarantine 100% (recommended)
+        </option>
+        <option value="reject" {% if features.mail_dmarc_policy == 'reject' %}selected{% endif %}>
+          Reject 100% (strictest)
+        </option>
+        <option value="none" {% if features.mail_dmarc_policy == 'none' %}selected{% endif %}>
+          Monitor only (does not satisfy BIMI)
+        </option>
+      </select>
+    </label>
+    <button type="submit">Save and scan all domains</button>
+  </form>
+
+  {% if security_actions %}
+  <h3>Latest actions</h3>
+  <ul>
+    {% for action in security_actions %}
+    <li>
+      <strong>{{ action.domain }} · {{ action.kind }}</strong> — {{ action.result }}
+      {% if action.record %}<br><code>{{ action.record }}</code>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h3>DNS scan</h3>
+  <p class="muted">
+    Domains hosted here are checked against this server’s authoritative zone
+    (what was just published). External domains use public DNS, which can lag
+    by a TTL after changes.
+  </p>
+  <table class="data">
+    <thead><tr><th>Domain</th><th>Source</th><th>MX</th><th>SPF</th><th>DKIM (mail)</th><th>DMARC</th></tr></thead>
+    <tbody>
+    {% for row in security_audit %}
+      <tr>
+        <td>{{ row.domain }}</td>
+        <td>{% if row.source == 'authoritative' %}This server{% else %}Public DNS{% endif %}</td>
+        <td>{% if row.mx.valid %}Valid{% else %}Missing{% endif %}</td>
+        <td>{% if row.spf.valid %}Valid{% else %}Missing / invalid{% endif %}</td>
+        <td>{% if row.dkim.valid %}Valid{% else %}Missing / invalid{% endif %}</td>
+        <td>
+          {% if row.dmarc.enforced %}
+            Enforced ({{ row.dmarc.policy }}, 100%)
+          {% elif row.dmarc.valid %}
+            Monitoring only ({{ row.dmarc.policy or 'none' }}, {{ row.dmarc.pct }}%)
+          {% else %}
+            Missing / invalid
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">No managed domains to scan.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if features.dns %}
+<section class="card-form" style="margin-top:1.5rem">
+  <h2>Nameservers</h2>
+  <p class="muted">
+    At your domain registrar (e.g. zadomain), create <strong>glue / child nameserver</strong>
+    records for these NS names, then set the domain’s nameservers to
+    <code>{{ features.ns1_hostname }}</code> and
+    <code>{{ features.ns2_hostname }}</code>.
+    Glue alone is not enough — the domain must also use those nameservers.
+  </p>
+  <p class="muted">
+    Same IP for ns1 and ns2 is fine on a single server. Do not point ns2 at a second IP
+    unless that IP also serves this zone.
+  </p>
+  <form method="post" action="/settings/dns" class="grid-form">
+    <label>NS1 hostname
+      <input type="text" name="ns1_hostname" value="{{ features.ns1_hostname or '' }}" required>
+    </label>
+    <label>NS1 IP
+      <input type="text" name="ns1_ip" value="{{ features.ns1_ip or features.public_ip or '' }}" required>
+    </label>
+    <label>NS2 hostname
+      <input type="text" name="ns2_hostname" value="{{ features.ns2_hostname or '' }}" required>
+    </label>
+    <label>NS2 IP
+      <input type="text" name="ns2_ip" value="{{ features.ns2_ip or features.public_ip or '' }}" required>
+    </label>
+    <button type="submit">Save nameservers</button>
+  </form>
+  {% if pdns_ok is defined and not pdns_ok %}
+  <p class="alert error">PowerDNS API is not reachable on 127.0.0.1:8081 — check the <code>mrmpanel-pdns</code> container.</p>
+  {% endif %}
+
+  <h2 style="margin-top:1.5rem">DNS debug (.co.za / ZACR checks)</h2>
+  <p class="muted">
+    Runs the same kind of checks the registry does against this server (authoritative SOA/NS/glue),
+    then compares with the public <code>.co.za</code> parent. Use this when Virtualmin “just worked”
+    but a nameserver move is stuck.
+  </p>
+  <form method="post" action="/settings/dns-debug" class="grid-form">
+    <label>Domain to test
+      <input type="text" name="domain" value="{{ (dns_report.domain if dns_report else features.ns_base_domain) or '' }}" placeholder="example.co.za">
+    </label>
+    <button type="submit">Run DNS debug</button>
+  </form>
+
+  {% if dns_report %}
+  <p class="{% if dns_failed %}alert error{% else %}alert ok{% endif %}">
+    {{ dns_report.summary }}
+  </p>
+  <table class="data">
+    <thead>
+      <tr><th>Check</th><th>Result</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      {% for c in dns_report.checks %}
+      <tr>
+        <td><code>{{ c.name }}</code>{% if c.critical %} *{% endif %}</td>
+        <td>{% if c.pass %}PASS{% else %}FAIL{% endif %}</td>
+        <td class="muted">{{ c.detail }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if dns_report.next_steps %}
+  <ol>
+    {% for step in dns_report.next_steps %}
+    <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  <p class="muted">* critical for registry acceptance</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

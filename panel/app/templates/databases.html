@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Databases — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Databases{% if selected_user %} — {{ selected_user }}{% endif %}</h1>
+  <p class="muted">Database engines are shared; credentials and listings are scoped to their owner.</p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+{% if created %}
+<pre class="code">Engine: {{ created.engine }}
+Host:   {{ created.host }}:{{ created.port }}
+DB:     {{ created.db_name }}
+User:   {{ created.db_user }}
+Pass:   {{ created.db_password }}</pre>
+{% endif %}
+
+<section class="card-form">
+  <h2>Create database</h2>
+  <form method="post" action="/databases" class="grid-form">
+    {% if not selected_user %}
+    <label>Owner
+      <select name="username" required>
+        {% for account in hosting_users %}
+        <option value="{{ account.username }}">{{ account.display_name or account.username }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label>Engine
+      <select name="engine" required>
+        {% if features.mariadb %}<option value="mariadb">MariaDB</option>{% endif %}
+        {% if features.postgres %}<option value="postgres">PostgreSQL</option>{% endif %}
+      </select>
+    </label>
+    <label>Name prefix<input name="prefix" value="db" pattern="[a-z][a-z0-9_]*"></label>
+    <button type="submit">Create</button>
+  </form>
+</section>
+
+<table class="data">
+  <thead><tr><th>Database</th><th>Owner</th><th>Engine</th><th>Login</th><th>Used by</th></tr></thead>
+  <tbody>
+  {% for db in database_list %}
+    <tr>
+      <td>{{ db.db_name }}</td>
+      <td>{{ db.username }}</td>
+      <td>{{ db.engine }}</td>
+      <td>{{ db.db_user }}</td>
+      <td>{{ db.site or 'Standalone' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">No databases in this account scope.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

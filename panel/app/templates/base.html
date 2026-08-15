@@ -1,0 +1,79 @@
+{% set features = features %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/panel.css">
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% if user %}
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="{% if is_admin %}/{% else %}/u/{% endif %}">
+        <img src="/static/img/logo.svg" alt="mrmpanel" width="36" height="36">
+        <span>mrmpanel</span>
+      </a>
+      {% if is_admin %}
+      <p class="nav-role">Administrator</p>
+      <form method="post" action="/admin/select-user" class="user-scope">
+        <input type="hidden" name="next_url" value="{{ request.url.path }}">
+        <label for="admin-user-scope">View account</label>
+        <select id="admin-user-scope" name="username" onchange="this.form.submit()">
+          <option value="" {% if not selected_user %}selected{% endif %}>All users</option>
+          {% for account in admin_users %}
+          <option value="{{ account.username }}" {% if selected_user == account.username %}selected{% endif %}>
+            {{ account.display_name or account.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+      <nav>
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+        <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">Users</a>
+        <a href="/domains" class="{% if request.url.path.startswith('/domains') %}active{% endif %}">Domains</a>
+        {% if features.web %}
+        <a href="/sites" class="{% if request.url.path.startswith('/sites') %}active{% endif %}">Sites</a>
+        {% endif %}
+        {% if features.mariadb or features.postgres %}
+        <a href="/databases" class="{% if request.url.path.startswith('/databases') %}active{% endif %}">Databases</a>
+        {% endif %}
+        {% if features.mail %}
+        <a href="/mail" class="{% if request.url.path.startswith('/mail') %}active{% endif %}">Mail</a>
+        {% else %}
+        <a href="/mail" class="dim">Mail <span class="badge">off</span></a>
+        {% endif %}
+        <a href="/plugins" class="{% if request.url.path.startswith('/plugins') %}active{% endif %}">Plugins</a>
+        <a href="/settings" class="{% if request.url.path.startswith('/settings') %}active{% endif %}">Global settings</a>
+      </nav>
+      {% else %}
+      <p class="nav-role">{{ user.display_name or user.username }}</p>
+      <nav>
+        <a href="/u/" class="{% if request.url.path == '/u/' %}active{% endif %}">Dashboard</a>
+        <a href="/u/domains" class="{% if request.url.path.startswith('/u/domains') %}active{% endif %}">My domains</a>
+        {% if features.web %}
+        <a href="/u/sites" class="{% if request.url.path.startswith('/u/sites') %}active{% endif %}">My sites</a>
+        {% endif %}
+        {% if features.mail %}
+        <a href="/u/mail" class="{% if request.url.path.startswith('/u/mail') %}active{% endif %}">Mail</a>
+        {% endif %}
+        <a href="/u/plugins" class="{% if request.url.path.startswith('/u/plugins') %}active{% endif %}">Plugins</a>
+        <a href="/u/settings" class="{% if request.url.path.startswith('/u/settings') %}active{% endif %}">Account</a>
+      </nav>
+      {% endif %}
+      <form method="post" action="/logout" class="logout">
+        <button type="submit">Sign out</button>
+      </form>
+    </aside>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% else %}
+    {% block body %}{% endblock %}
+  {% endif %}
+</body>
+</html>

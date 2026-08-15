@@ -1,0 +1,9 @@
+# Shared middlewares. Site routes come from Docker labels; the panel route is
+# generated per-server by scripts/install-full.sh as panel.yml.
+http:
+  middlewares:
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true

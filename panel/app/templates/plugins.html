@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Plugins — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Plugins</h1>
+  <p class="muted">Plugins can only read/write inside the user's home directory.</p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+<section class="card-form">
+  <h2>Install stub plugin</h2>
+  <form method="post" action="/plugins/install" class="grid-form">
+    <label>User
+      <select name="username" required>
+        {% for u in hosting_users %}
+        <option value="{{ u.username }}" {% if u.username == plugin_user %}selected{% endif %}>{{ u.username }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Plugin name<input name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}"></label>
+    <button type="submit">Install</button>
+  </form>
+</section>
+
+<table class="data">
+  <thead><tr><th>Plugin</th><th>Path</th><th></th></tr></thead>
+  <tbody>
+  {% for p in plugin_list %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td><code>~/{{ p.path }}</code></td>
+      <td>
+        <form method="post" action="/plugins/run">
+          <input type="hidden" name="username" value="{{ plugin_user }}">
+          <input type="hidden" name="name" value="{{ p.name }}">
+          <button type="submit">Run</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3" class="muted">No plugins for this user</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if output %}<pre class="code">{{ output }}</pre>{% endif %}
+{% endblock %}

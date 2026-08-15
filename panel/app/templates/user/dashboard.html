@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}My dashboard — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Welcome, {{ user.display_name or user.username }}</h1>
+  <p class="muted">Manage your domains and account. Server-wide admin tools are not available here.</p>
+</header>
+
+<section class="module-grid">
+  <article class="mod on">
+    <h2>Sites</h2>
+    <p>{{ site_list|length }} domain(s)</p>
+  </article>
+  <article class="mod on">
+    <h2>Domains</h2>
+    <p>{% if domains %}{{ domains|join(', ') }}{% else %}None yet{% endif %}</p>
+  </article>
+</section>
+
+{% if domain_warnings.warnings %}
+<section class="warn-list">
+  <h2>Notices for your domains</h2>
+  {% for w in domain_warnings.warnings %}
+  <div class="alert {{ w.level }}">
+    <strong>{{ w.title }}</strong>
+    <p>{{ w.detail }}</p>
+    <form method="post" action="/u/warnings/dismiss/{{ w.key }}" class="inline">
+      <button type="submit" class="linkish">Ignore</button>
+    </form>
+  </div>
+  {% endfor %}
+</section>
+{% elif not domains %}
+<section class="alert info">
+  <strong>No domains yet</strong>
+  <p>Ask your administrator to deploy a site for you, or add one under <a href="/u/sites">My sites</a>.</p>
+</section>
+{% else %}
+<section class="alert ok">
+  <p>No pending notices for your domains.</p>
+</section>
+{% endif %}
+{% endblock %}

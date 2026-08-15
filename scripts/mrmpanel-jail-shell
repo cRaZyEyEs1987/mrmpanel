@@ -1,0 +1,22 @@
+#!/bin/bash
+# Restricted login shell for mrmpanel hosting users — stays in $HOME
+export HOME="${HOME:-/home/$USER}"
+cd "$HOME" || exit 1
+# Clear PATH to safe bins only
+export PATH=/usr/local/bin:/usr/bin:/bin
+# Prevent leaving home via CDPATH tricks
+unset CDPATH
+# Interactive bash with restricted mode when possible
+if [[ -n "$SSH_ORIGINAL_COMMAND" ]]; then
+  # Allow only sftp-server style or deny arbitrary commands
+  case "$SSH_ORIGINAL_COMMAND" in
+    internal-sftp|/usr/lib*/openssh/sftp-server*)
+      exec $SSH_ORIGINAL_COMMAND
+      ;;
+    *)
+      echo "Only interactive SSH or SFTP is allowed."
+      exit 1
+      ;;
+  esac
+fi
+exec /bin/bash --noprofile --rcfile /etc/mrmpanel/bashrc-jail

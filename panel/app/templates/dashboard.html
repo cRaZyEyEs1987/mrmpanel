@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Admin dashboard</h1>
+  <p class="muted">{{ features.hostname }} · server-wide controls (hosting users use their own dashboard at <code>/u/</code>)</p>
+</header>
+
+{% if not connection.secure %}
+<section class="alert error connection-warning">
+  <strong>Unsafe connection — this session is using HTTP</strong>
+  <p>
+    You opened <code>{{ connection.url }}</code>. Information sent over HTTP,
+    including your login session, is not encrypted and could be intercepted.
+    {% if hostname_ssl.trusted %}
+      Switch now to the secure dashboard:
+      <a href="https://{{ hostname_ssl.hostname }}/">https://{{ hostname_ssl.hostname }}</a>.
+    {% else %}
+      Activate SSL below, then use the HTTPS hostname link.
+    {% endif %}
+    HTTP access will remain available until the planned “Disable HTTP” feature is added.
+  </p>
+</section>
+{% endif %}
+
+{% if hostname_ssl %}
+  {% if hostname_ssl.trusted %}
+  <section class="alert ok">
+    <strong>SSL is on for this server</strong>
+    <p>
+      {{ hostname_ssl.detail }}
+      Log in securely at
+      <a href="https://{{ hostname_ssl.hostname }}/" target="_blank" rel="noopener">https://{{ hostname_ssl.hostname }}</a>.
+    </p>
+  </section>
+  {% elif hostname_ssl.has_cert %}
+  <section class="alert warning">
+    <strong>SSL certificate not trusted yet — {{ hostname_ssl.hostname }}</strong>
+    <p>
+      {{ hostname_ssl.detail }}
+      Browsers will show a warning. This clears itself once Let's Encrypt issues the real
+      certificate — it needs <code>{{ hostname_ssl.hostname }}</code> to point to this server
+      and port 80 to be reachable. Keep using <code>:8080</code> in the meantime.
+    </p>
+    <button type="button" data-ssl-activate>Activate SSL</button>
+  </section>
+  {% else %}
+  <section class="alert warning">
+    <strong>No SSL certificate — {{ hostname_ssl.hostname or 'hostname' }}</strong>
+    <p>
+      {{ hostname_ssl.detail }}
+      Point <code>{{ hostname_ssl.hostname or 'your hostname' }}</code> at this server and make sure
+      ports 80 and 443 are open; the panel then picks up a free certificate automatically.
+      <code>:8080</code> keeps working either way.
+    </p>
+    <button type="button" data-ssl-activate>Activate SSL</button>
+  </section>
+  {% endif %}
+{% endif %}
+
+<section class="module-grid">
+  <article class="mod {% if features.web %}on{% else %}off{% endif %}">
+    <h2>Web</h2>
+    <p>{% if features.web %}Active · {{ site_count }} site(s){% else %}Not installed{% endif %}</p>
+  </article>
+  <article class="mod {% if features.mail %}on{% else %}off{% endif %}">
+    <h2>Mail</h2>
+    <p>{% if features.mail %}Active{% else %}Not installed — no mail UI{% endif %}</p>
+  </article>
+  <article class="mod {% if features.mariadb %}on{% else %}off{% endif %}">
+    <h2>MariaDB</h2>
+    <p>{% if features.mariadb %}Active{% else %}Not installed{% endif %}</p>
+  </article>
+  <article class="mod {% if features.postgres %}on{% else %}off{% endif %}">
+    <h2>PostgreSQL</h2>
+    <p>{% if features.postgres %}Active{% else %}Not installed{% endif %}</p>
+  </article>
+  <article class="mod on">
+    <h2>Users</h2>
+    <p>{{ user_count }} hosting account(s)</p>
+  </article>
+  <article class="mod on">
+    <h2>Stacks</h2>
+    <p>{{ available_stacks|length }} template(s) available</p>
+  </article>
+</section>
+
+{% if features.mail and mail_status.warnings %}
+<section class="warn-list">
+  <h2>Mail / DNS notices</h2>
+  {% for w in mail_status.warnings %}
+  <div class="alert {{ w.level }}">
+    <strong>{{ w.title }}</strong>
+    <p>{{ w.detail }}</p>
+    <form method="post" action="/warnings/dismiss/{{ w.key }}" class="inline">
+      <button type="submit" class="linkish">Ignore</button>
+    </form>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if not features.mail %}
+<section class="alert info">
+  <strong>Mail module off</strong>
+  <p>Mail features and settings are hidden because mail was not selected during install. Indicator kept on the dashboard for clarity.</p>
+</section>
+{% endif %}
+<script src="/static/js/ssl-progress.js"></script>
+{% endblock %}

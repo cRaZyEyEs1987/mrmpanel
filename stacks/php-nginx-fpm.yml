@@ -1,0 +1,21 @@
+id: php-nginx-fpm
+name: PHP (nginx + FPM)
+description: PHP-FPM behind nginx (single image helper)
+category: php
+requires: []
+image: "webdevops/php-nginx:{version}"
+versions: ["8.0", "8.1", "8.2", "8.3"]
+default_version: "8.3"
+container_port: 80
+workdir: /app
+volume_mount: /app
+env:
+  WEB_DOCUMENT_ROOT: /app
+config_mounts:
+  - host_rel: config/php.ini
+    container: /opt/docker/etc/php/php.ini
+    optional: true
+starter_files:
+  - path: index.php
+    content: |
+      <?php echo "PHP " . PHP_VERSION;

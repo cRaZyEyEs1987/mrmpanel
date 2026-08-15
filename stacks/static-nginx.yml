@@ -1,0 +1,16 @@
+id: static-nginx
+name: Static (nginx)
+description: Serve static HTML/CSS/JS files
+category: static
+requires: []
+image: nginx:1.27-alpine
+container_port: 80
+workdir: /usr/share/nginx/html
+volume_mount: /usr/share/nginx/html
+env: {}
+starter_files:
+  - path: index.html
+    content: |
+      <!DOCTYPE html>
+      <html><head><title>Welcome</title></head>
+      <body><h1>Site ready</h1><p>Upload your files to this domain folder.</p></body></html>

@@ -1,0 +1,28 @@
+id: python-flask
+name: Python Flask
+description: Lightweight Flask web app
+category: python
+requires: []
+image: "python:{version}-slim"
+versions: ["3.10", "3.11", "3.12", "3.13"]
+default_version: "3.12"
+container_port: 8000
+workdir: /app
+volume_mount: /app
+command: ["sh", "-c", "pip install -r requirements.txt && python app.py"]
+env:
+  PORT: "8000"
+starter_files:
+  - path: requirements.txt
+    content: |
+      flask==3.1.0
+  - path: app.py
+    content: |
+      from flask import Flask
+      import os
+      app = Flask(__name__)
+      @app.get("/")
+      def home():
+          return "Flask site ready"
+      if __name__ == "__main__":
+          app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))

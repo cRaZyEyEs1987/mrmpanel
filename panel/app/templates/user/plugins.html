@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Plugins — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Plugins</h1>
+  <p class="muted">Runs only inside your home directory.</p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+<section class="card-form">
+  <form method="post" action="/u/plugins/install" class="grid-form">
+    <label>Plugin name<input name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}"></label>
+    <button type="submit">Install stub</button>
+  </form>
+</section>
+
+<table class="data">
+  <thead><tr><th>Plugin</th><th>Path</th><th></th></tr></thead>
+  <tbody>
+  {% for p in plugin_list %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td><code>~/{{ p.path }}</code></td>
+      <td>
+        <form method="post" action="/u/plugins/run">
+          <input type="hidden" name="name" value="{{ p.name }}">
+          <button type="submit">Run</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3" class="muted">No plugins yet</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if output %}<pre class="code">{{ output }}</pre>{% endif %}
+{% endblock %}

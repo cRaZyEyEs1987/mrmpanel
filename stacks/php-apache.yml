@@ -1,0 +1,20 @@
+id: php-apache
+name: PHP (Apache)
+description: Classic PHP hosting with Apache
+category: php
+requires: []
+image: "php:{version}-apache"
+versions: ["8.0", "8.1", "8.2", "8.3"]
+default_version: "8.3"
+container_port: 80
+workdir: /var/www/html
+volume_mount: /var/www/html
+env: {}
+config_mounts:
+  - host_rel: config/php.ini
+    container: /usr/local/etc/php/conf.d/zz-mrmpanel.ini
+    optional: true
+starter_files:
+  - path: index.php
+    content: |
+      <?php phpinfo();

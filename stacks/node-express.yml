@@ -1,0 +1,26 @@
+id: node-express
+name: Node.js (Express)
+description: Node.js Express web app
+category: node
+requires: []
+image: "node:{version}-alpine"
+versions: ["18", "20", "22"]
+default_version: "22"
+container_port: 3000
+workdir: /app
+volume_mount: /app
+command: ["node", "server.js"]
+env:
+  NODE_ENV: production
+  PORT: "3000"
+starter_files:
+  - path: package.json
+    content: |
+      {"name":"site","version":"1.0.0","main":"server.js","dependencies":{"express":"^4.21.0"}}
+  - path: server.js
+    content: |
+      const express = require('express');
+      const app = express();
+      const port = process.env.PORT || 3000;
+      app.get('/', (req, res) => res.send('Express site ready'));
+      app.listen(port, '0.0.0.0', () => console.log('listening on ' + port));

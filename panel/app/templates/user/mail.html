@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Mail — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Mail</h1>
+  <p class="muted">Only mailboxes and DNS for your domains.</p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+{% if not domains %}
+<div class="alert info">
+  <strong>No domains on your account</strong>
+  <p>Create a site first so mailbox domains can be validated against your hostnames.</p>
+</div>
+{% else %}
+
+{% for w in domain_warnings.warnings %}
+<div class="alert {{ w.level }}">
+  <strong>{{ w.title }}</strong>
+  <p>{{ w.detail }}</p>
+  <form method="post" action="/u/mail/dismiss/{{ w.key }}" class="inline">
+    <button type="submit" class="linkish">Ignore</button>
+  </form>
+</div>
+{% endfor %}
+
+<section class="card-form">
+  <h2>Webmail</h2>
+  <p>Sign in with your full email address and mailbox password.</p>
+  <p><a class="button" href="https://{{ selected_domain }}/webmail/" target="_blank" rel="noopener">Open {{ selected_domain }} webmail</a></p>
+</section>
+
+<section class="card-form">
+  <h2>DNS for a domain</h2>
+  <form method="get" action="/u/mail" class="grid-form">
+    <label>Domain
+      <select name="domain" onchange="this.form.submit()">
+        {% for d in domains %}
+        <option value="{{ d }}" {% if d == selected_domain %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+  {% if guidance %}
+  <pre class="code">{% if guidance.ns_note %}# {{ guidance.ns_note }}
+{% for line in guidance.ns %}{{ line }}
+{% endfor %}
+{% endif %}{{ guidance.a_record }}
+{{ guidance.mx }}
+{{ guidance.spf }}
+{{ guidance.dmarc }}
+# {{ guidance.dkim_note }}</pre>
+  {% endif %}
+</section>
+
+<section class="card-form">
+  <h2>Add mailbox</h2>
+  <p class="muted">Address must use one of: {{ domains|join(', ') }}. Stored under <code>/home/&lt;you&gt;/&lt;email&gt;/maildir</code>.</p>
+  <form method="post" action="/u/mail/mailbox" class="grid-form">
+    <label>Mailbox name<input name="local_part" required pattern="[A-Za-z0-9._%+-]+" placeholder="sales"></label>
+    <label>Domain
+      <select name="domain" required>
+        {% for d in domains %}
+        <option value="{{ d }}" {% if d == selected_domain %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Password<input type="password" name="password" required></label>
+    <button type="submit">Add</button>
+  </form>
+</section>
+
+<section class="card-form">
+  <h2>Enable DKIM</h2>
+  <form method="post" action="/u/mail/dkim" class="grid-form">
+    <label>Domain
+      <select name="domain" required>
+        {% for d in domains %}
+        <option value="{{ d }}" {% if d == selected_domain %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Generate DKIM</button>
+  </form>
+  {% if dkim_result %}<pre class="code">{{ dkim_result }}</pre>{% endif %}
+</section>
+
+<table class="data">
+  <thead><tr><th>Your mailboxes</th></tr></thead>
+  <tbody>
+  {% for m in mailboxes %}
+    <tr><td>{{ m }}</td></tr>
+  {% else %}
+    <tr><td class="muted">No mailboxes yet</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

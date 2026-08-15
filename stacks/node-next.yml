@@ -1,0 +1,32 @@
+id: node-next
+name: Next.js
+description: Next.js Node application (bring your own build or use starter)
+category: node
+requires: []
+image: "node:{version}-alpine"
+versions: ["18", "20", "22"]
+default_version: "22"
+container_port: 3000
+workdir: /app
+volume_mount: /app
+command: ["sh", "-c", "npm install && npm run start -- -H 0.0.0.0 -p 3000"]
+env:
+  NODE_ENV: production
+  PORT: "3000"
+starter_files:
+  - path: package.json
+    content: |
+      {
+        "name": "next-site",
+        "version": "1.0.0",
+        "scripts": {
+          "dev": "npx --yes next@15 dev -H 0.0.0.0 -p 3000",
+          "build": "npx --yes next@15 build",
+          "start": "npx --yes next@15 start"
+        }
+      }
+  - path: pages/index.js
+    content: |
+      export default function Home() {
+        return <main><h1>Next.js site ready</h1></main>;
+      }

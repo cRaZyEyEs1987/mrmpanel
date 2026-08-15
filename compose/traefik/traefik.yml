@@ -1,0 +1,28 @@
+api:
+  dashboard: false
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: mrmpanel
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@localhost
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+log:
+  level: INFO

@@ -1,0 +1,27 @@
+id: laravel
+name: Laravel
+description: Full Laravel application (Composer create-project + DB migrate)
+category: php
+requires: [mariadb]
+preferred_db: mariadb
+image: "webdevops/php-nginx:{version}"
+# create-project target; leave blank for latest stable
+laravel_version: ""
+versions: ["8.2", "8.3", "8.4"]
+default_version: "8.3"
+container_port: 80
+workdir: /app
+volume_mount: /app
+env:
+  WEB_DOCUMENT_ROOT: /app/public
+  APP_ENV: production
+  APP_DEBUG: "false"
+db_env:
+  DB_CONNECTION: mysql
+  DB_HOST: "{host}"
+  DB_PORT: "{port}"
+  DB_DATABASE: "{db_name}"
+  DB_USERNAME: "{db_user}"
+  DB_PASSWORD: "{db_password}"
+auto_install: laravel
+starter_files: []

@@ -1,0 +1,23 @@
+id: wordpress
+name: WordPress
+description: WordPress CMS (auto DB + one-click admin setup)
+category: php
+requires: [mariadb]
+preferred_db: mariadb
+image: "wordpress:7.0-php{version}-apache"
+# Desired core major.minor — deploy forces this via wp core download if image unpack is stale
+wp_core_version: "7.0"
+versions: ["8.2", "8.3", "8.4"]
+default_version: "8.3"
+container_port: 80
+workdir: /var/www/html
+volume_mount: /var/www/html
+env: {}
+db_env:
+  WORDPRESS_DB_HOST: "{host}:{port}"
+  WORDPRESS_DB_NAME: "{db_name}"
+  WORDPRESS_DB_USER: "{db_user}"
+  WORDPRESS_DB_PASSWORD: "{db_password}"
+# Panel shows admin user/password fields; install runs via wordpress:cli after deploy
+auto_install: wordpress
+starter_files: []

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ site.domain }} — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>{{ site.domain }}</h1>
+  <p class="muted">Stack: {{ site.stack }}{% if current_version %} · {{ current_version }}{% endif %} · path: <code>{{ site.path }}</code></p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+<section class="card-form">
+  <h2>DNS for this site</h2>
+  <pre class="code">{{ guidance.a_record }}
+{% if features.mail %}# Mail is configured on managed domain {{ mail_domain }}, not automatically on every site hostname.
+{{ mail_guidance.mx }}
+{{ mail_guidance.spf }}
+{{ mail_guidance.dmarc }}
+# {{ mail_guidance.dkim_note }}{% endif %}</pre>
+</section>
+
+{% if stack_versions %}
+<section class="card-form">
+  <h2>Runtime version</h2>
+  <p class="muted">Switch the container image only. Your site files and database credentials are kept. The app must support the new runtime.</p>
+  <form method="post" action="/u/sites/{{ site.id }}/version" class="grid-form" onsubmit="return confirm('Recreate the container on the selected runtime? Files stay on disk.');">
+    <label>Version
+      <select name="version" required>
+        {% for v in stack_versions %}
+        <option value="{{ v }}" {% if current_version == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Change version</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card-form">
+  <h2>PHP / config overrides</h2>
+  <p class="muted">Applies to your account config (e.g. php.ini) under your home directory.</p>
+  <form method="post" action="/u/sites/{{ site.id }}/settings">
+    <label>php.ini<textarea name="php_ini" rows="12" style="width:100%;font-family:var(--mono);background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:0.75rem;">{{ php_ini }}</textarea></label>
+    <p style="margin-top:1rem"><button type="submit">Save</button>
+    <a href="/u/sites" class="muted" style="margin-left:1rem">Back</a></p>
+  </form>
+</section>
+{% endblock %}

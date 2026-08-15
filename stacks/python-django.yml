@@ -1,0 +1,50 @@
+id: python-django
+name: Python Django
+description: Django application (placeholder starter)
+category: python
+requires: [postgres]
+preferred_db: postgres
+image: "python:{version}-slim"
+versions: ["3.10", "3.11", "3.12", "3.13"]
+default_version: "3.12"
+container_port: 8000
+workdir: /app
+volume_mount: /app
+command: ["sh", "-c", "pip install -r requirements.txt && python manage.py runserver 0.0.0.0:8000"]
+env:
+  PORT: "8000"
+db_env:
+  DATABASE_URL: "postgres://{db_user}:{db_password}@mrmpanel-postgres:5432/{db_name}"
+starter_files:
+  - path: requirements.txt
+    content: |
+      django==5.1.4
+      psycopg[binary]==3.2.3
+  - path: manage.py
+    content: |
+      #!/usr/bin/env python
+      import os, sys
+      def main():
+          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "project.settings")
+          from django.core.management import execute_from_command_line
+          execute_from_command_line(sys.argv)
+      if __name__ == "__main__":
+          main()
+  - path: project/__init__.py
+    content: ""
+  - path: project/settings.py
+    content: |
+      SECRET_KEY = "change-me"
+      DEBUG = True
+      ALLOWED_HOSTS = ["*"]
+      INSTALLED_APPS = ["django.contrib.contenttypes", "django.contrib.staticfiles"]
+      ROOT_URLCONF = "project.urls"
+      MIDDLEWARE = []
+      TEMPLATES = [{"BACKEND":"django.template.backends.django.DjangoTemplates","DIRS":[],"APP_DIRS":True,"OPTIONS":{}}]
+      DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": "db.sqlite3"}}
+      STATIC_URL = "static/"
+  - path: project/urls.py
+    content: |
+      from django.http import HttpResponse
+      from django.urls import path
+      urlpatterns = [path("", lambda r: HttpResponse("Django site ready"))]

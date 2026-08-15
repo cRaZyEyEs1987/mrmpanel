@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" fill="none">
+  <g transform="translate(0,0)">
+    <rect width="64" height="64" rx="14" fill="#161d26"/>
+    <path d="M18 42V22l14-8 14 8v20l-14 8-14-8z" stroke="#3d9a7a" stroke-width="2.5" fill="rgba(61,154,122,0.12)"/>
+    <path d="M32 14v36M18 22l14 8 14-8M18 42l14-8 14 8" stroke="#3a7ca5" stroke-width="2" opacity="0.9"/>
+    <circle cx="32" cy="30" r="3.5" fill="#3d9a7a"/>
+  </g>
+  <text x="84" y="42" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="28" font-weight="600" fill="#e8eef4">mrmpanel</text>
+</svg>

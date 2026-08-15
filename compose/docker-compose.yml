@@ -1,0 +1,186 @@
+# Core mrmpanel stack. Panel runs on the host via systemd (port 8080).
+name: mrmpanel
+
+networks:
+  mrmpanel:
+    name: mrmpanel
+    external: true
+
+volumes:
+  traefik_letsencrypt:
+
+services:
+  traefik:
+    image: traefik:v3.6
+    profiles: ["web"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+      # Alma/RHEL SELinux: allow reading the Docker API socket so routes are discovered
+      - label=disable
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - mrmpanel
+    labels:
+      - traefik.enable=false
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: mrmpanel-mariadb
+    profiles: ["mariadb"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MRMPANEL_MARIADB_ROOT_PASSWORD:-changeme}
+    volumes:
+      - /var/lib/mrmpanel/mariadb:/var/lib/mysql
+    networks:
+      - mrmpanel
+    ports:
+      - "3306:3306"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mrmpanel-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${MRMPANEL_POSTGRES_PASSWORD:-changeme}
+      POSTGRES_USER: mrmpanel
+      POSTGRES_DB: mrmpanel
+    volumes:
+      - /var/lib/mrmpanel/postgres:/var/lib/postgresql/data
+    networks:
+      - mrmpanel
+    ports:
+      - "5432:5432"
+
+  mail:
+    image: ghcr.io/docker-mailserver/docker-mailserver:14.0
+    container_name: mrmpanel-mail
+    profiles: ["mail"]
+    hostname: ${MRMPANEL_HOSTNAME:-mail}
+    domainname: ${MRMPANEL_MAIL_DOMAIN:-localhost}
+    restart: unless-stopped
+    stop_grace_period: 1m
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "993:993"
+    volumes:
+      - /var/lib/mrmpanel/mail/data:/var/mail
+      - /var/lib/mrmpanel/mail/state:/var/mail-state
+      - /var/lib/mrmpanel/mail/logs:/var/log/mail
+      - /var/lib/mrmpanel/mail/config:/tmp/docker-mailserver
+      # Hosting-user maildirs live under /home/<user>/<email>/maildir (symlinked into /var/mail)
+      - /home:/home
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      ENABLE_RSPAMD: 1
+      ENABLE_OPENDKIM: 1
+      ENABLE_OPENDMARC: 1
+      ENABLE_FAIL2BAN: 1
+      # Traefik owns ACME; install-full.sh exports its hostname certificate here.
+      SSL_TYPE: manual
+      SSL_CERT_PATH: /tmp/docker-mailserver/ssl/fullchain.pem
+      SSL_KEY_PATH: /tmp/docker-mailserver/ssl/privkey.pem
+      PERMIT_DOCKER: network
+      # Match ownership used when creating /home/.../maildir on the host
+      DMS_VMAIL_UID: 5000
+      DMS_VMAIL_GID: 5000
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+    networks:
+      mrmpanel:
+        aliases:
+          # Lets internal clients validate the same hostname used by the TLS cert.
+          - ${MRMPANEL_HOSTNAME:-mail}
+
+  roundcube-db:
+    image: mariadb:11.4
+    container_name: mrmpanel-roundcube-db
+    profiles: ["webmail"]
+    restart: unless-stopped
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+      MARIADB_DATABASE: roundcube
+      MARIADB_USER: roundcube
+      MARIADB_PASSWORD: ${MRMPANEL_ROUNDCUBE_DB_PASSWORD:-changeme}
+    volumes:
+      - /var/lib/mrmpanel/roundcube/mysql:/var/lib/mysql:Z
+    networks:
+      - mrmpanel
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    labels:
+      - traefik.enable=false
+
+  # One shared webmail installation for every hosted domain. Traefik routes
+  # https://<managed-domain>/webmail/ here; no files are installed per site.
+  roundcube:
+    image: roundcube/roundcubemail:1.7.3-apache
+    container_name: mrmpanel-roundcube
+    profiles: ["webmail"]
+    restart: unless-stopped
+    depends_on:
+      mail:
+        condition: service_started
+      roundcube-db:
+        condition: service_healthy
+    environment:
+      ROUNDCUBEMAIL_DB_TYPE: mysql
+      ROUNDCUBEMAIL_DB_HOST: mrmpanel-roundcube-db
+      ROUNDCUBEMAIL_DB_NAME: roundcube
+      ROUNDCUBEMAIL_DB_USER: roundcube
+      ROUNDCUBEMAIL_DB_PASSWORD: ${MRMPANEL_ROUNDCUBE_DB_PASSWORD:-changeme}
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://${MRMPANEL_HOSTNAME:-mail}
+      ROUNDCUBEMAIL_DEFAULT_PORT: 993
+      ROUNDCUBEMAIL_SMTP_SERVER: tls://${MRMPANEL_HOSTNAME:-mail}
+      ROUNDCUBEMAIL_SMTP_PORT: 587
+      ROUNDCUBEMAIL_REQUEST_PATH: /webmail
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload
+    networks:
+      - mrmpanel
+    labels:
+      - traefik.enable=false
+
+  # Authoritative DNS — ns1/ns2 for all hosted domains (API on localhost only)
+  # Image defaults: launch=gsqlite3, database=/var/lib/powerdns/pdns.sqlite3
+  pdns:
+    image: powerdns/pdns-auth-49:4.9.17
+    container_name: mrmpanel-pdns
+    profiles: ["dns"]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/etc/powerdns/mrmpanel-entrypoint.sh"]
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "127.0.0.1:8081:8081"
+    environment:
+      PDNS_AUTH_API_KEY: ${MRMPANEL_PDNS_API_KEY:-changeme}
+      PDNS_SCHEMA: /etc/powerdns/schema.sqlite3.sql
+    volumes:
+      # :Z so SELinux (Alma/Rocky) allows the container to write the SQLite DB
+      - /var/lib/mrmpanel/dns:/var/lib/powerdns:Z
+      - ./pdns/schema.sqlite3.sql:/etc/powerdns/schema.sqlite3.sql:ro
+      - ./pdns/entrypoint.sh:/etc/powerdns/mrmpanel-entrypoint.sh:ro
+    networks:
+      - mrmpanel
+    labels:
+      - traefik.enable=false
+    # entrypoint needs root briefly to chown the bind mount for uid 953 (pdns)
+    user: "0:0"

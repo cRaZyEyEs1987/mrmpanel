@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Mail — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Mail{% if selected_user %} — {{ selected_user }}{% endif %}</h1>
+  <p class="muted">Mailboxes can only use domains assigned to the current account scope.</p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+
+{% for w in mail_status.warnings %}
+<div class="alert {{ w.level }}">
+  <strong>{{ w.title }}</strong>
+  <p>{{ w.detail }}</p>
+  <form method="post" action="/mail/dismiss/{{ w.key }}" class="inline">
+    <button type="submit" class="linkish">Ignore</button>
+  </form>
+</div>
+{% endfor %}
+
+{% if not domains %}
+<section class="alert info">
+  <strong>No managed domains in this account scope</strong>
+  <p>Add a domain first. Mail is no longer inferred from the server hostname.</p>
+</section>
+{% else %}
+<section class="card-form">
+  <h2>Webmail</h2>
+  <p>One shared Roundcube installation serves every managed domain. Sign in with the full mailbox address.</p>
+  <p><a class="button" href="https://{{ selected_domain }}/webmail/" target="_blank" rel="noopener">Open {{ selected_domain }} webmail</a></p>
+</section>
+
+<section class="card-form">
+  <h2>DNS defaults</h2>
+  <form method="get" action="/mail" class="grid-form">
+    <label>Domain
+      <select name="domain" onchange="this.form.submit()">
+        {% for item in managed_domains %}
+        <option value="{{ item.domain }}" {% if item.domain == selected_domain %}selected{% endif %}>
+          {{ item.domain }}{% if not selected_user %} — {{ item.username }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+  <pre class="code">{% if guidance and guidance.ns_note %}# {{ guidance.ns_note }}
+{% for line in guidance.ns %}{{ line }}
+{% endfor %}{% for line in guidance.ns_glue %}{{ line }}
+{% endfor %}
+{% endif %}{{ guidance.mx }}
+{{ guidance.spf }}
+{{ guidance.dmarc }}
+# {{ guidance.dkim_note }}
+# {{ guidance.ptr_note }}</pre>
+</section>
+
+<section class="card-form">
+  <h2>Add mailbox</h2>
+  <form method="post" action="/mail/mailbox" class="grid-form">
+    <label>Mailbox name<input name="local_part" required pattern="[A-Za-z0-9._%+-]+" placeholder="sales"></label>
+    <label>Domain
+      <select name="domain" required>
+        {% for item in managed_domains %}
+        <option value="{{ item.domain }}" {% if item.domain == selected_domain %}selected{% endif %}>
+          {{ item.domain }}{% if not selected_user %} — {{ item.username }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Password<input type="password" name="password" required></label>
+    <button type="submit">Add</button>
+  </form>
+</section>
+
+<section class="card-form">
+  <h2>Enable DKIM</h2>
+  <form method="post" action="/mail/dkim" class="grid-form">
+    <label>Domain
+      <select name="domain" required>
+        {% for item in managed_domains %}
+        <option value="{{ item.domain }}" {% if item.domain == selected_domain %}selected{% endif %}>{{ item.domain }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Generate DKIM</button>
+  </form>
+  {% if dkim_result %}<pre class="code">{{ dkim_result }}</pre>{% endif %}
+</section>
+
+<table class="data">
+  <thead><tr><th>Mailboxes</th></tr></thead>
+  <tbody>
+  {% for m in mailboxes %}
+    <tr><td>{{ m }}</td></tr>
+  {% else %}
+    <tr><td class="muted">No mailboxes yet</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

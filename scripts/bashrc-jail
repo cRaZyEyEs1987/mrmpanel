@@ -1,0 +1,15 @@
+# Sourced for jailed hosting users
+export HOME="${HOME:-$PWD}"
+cd "$HOME" 2>/dev/null || true
+alias cd='_mrm_cd'
+_mrm_cd() {
+  local target="${1:-$HOME}"
+  local resolved
+  resolved="$(realpath -m "$target" 2>/dev/null || echo "$target")"
+  case "$resolved" in
+    "$HOME"|"$HOME"/*) builtin cd "$resolved" ;;
+    *) echo "mrmpanel: access denied outside home" ;;
+  esac
+}
+PS1='\u@\h:\w\$ '
+echo "mrmpanel jail — you are restricted to $HOME"

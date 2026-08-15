@@ -1,0 +1,312 @@
+:root {
+  --bg: #0f1419;
+  --bg2: #161d26;
+  --panel: #1c2530;
+  --line: #2a3644;
+  --text: #e8eef4;
+  --muted: #8b9aab;
+  --accent: #3d9a7a;
+  --accent2: #2f7a60;
+  --warn: #c9a227;
+  --danger: #c45c5c;
+  --info: #3a7ca5;
+  --ok: #3d9a7a;
+  --radius: 10px;
+  --font: "IBM Plex Sans", "Source Sans 3", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
+}
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(61, 154, 122, 0.18), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(58, 124, 165, 0.12), transparent),
+    var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, .code, pre { font-family: var(--mono); font-size: 0.85rem; }
+
+.shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+.sidebar {
+  background: var(--bg2);
+  border-right: 1px solid var(--line);
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.brand {
+  display: flex; align-items: center; gap: 0.65rem;
+  color: var(--text); font-weight: 600; font-size: 1.15rem;
+  text-decoration: none;
+}
+.brand:hover { text-decoration: none; }
+.sidebar nav { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; }
+.nav-role {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.user-scope {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: -0.8rem;
+}
+.user-scope label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.user-scope select {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+}
+.row-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+.row-actions form { margin: 0; }
+.sidebar nav a {
+  color: var(--muted);
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  text-decoration: none;
+}
+.sidebar nav a:hover, .sidebar nav a.active {
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+.sidebar nav a.dim { opacity: 0.65; }
+.badge {
+  font-size: 0.65rem;
+  background: var(--line);
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+.logout button {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.logout button:hover { color: var(--text); border-color: var(--muted); }
+
+.content { padding: 2rem 2.25rem; max-width: 1100px; }
+.page-head { margin-bottom: 1.75rem; }
+.page-head h1 { margin: 0 0 0.35rem; font-size: 1.75rem; font-weight: 600; }
+.muted { color: var(--muted); margin: 0; }
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.mod {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+.mod h2 { margin: 0 0 0.35rem; font-size: 1rem; }
+.mod p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.mod.on { border-color: rgba(61, 154, 122, 0.45); }
+.mod.off { opacity: 0.55; }
+
+.card-form {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.card-form h2 { margin: 0 0 1rem; font-size: 1.05rem; }
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.85rem 1rem;
+  align-items: end;
+}
+label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; color: var(--muted); }
+input, select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+button, a.button {
+  background: var(--accent);
+  color: #04140f;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  font: inherit;
+}
+button:hover, a.button:hover { background: var(--accent2); color: #fff; }
+a.button { display: inline-block; text-decoration: none; }
+button.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+button.linkish {
+  background: none; border: none; color: var(--accent); padding: 0; font-weight: 500;
+  text-decoration: underline; cursor: pointer;
+}
+
+.alert {
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.alert.error { border-color: var(--danger); }
+.alert.ok, .alert.ok { border-color: var(--ok); }
+.alert.warning { border-color: var(--warn); }
+.alert.info { border-color: var(--info); }
+.alert.inline, form.inline { display: inline; }
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+table.data th, table.data td {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+table.data th { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+table.data tr:last-child td { border-bottom: none; }
+
+.dns-records { margin-top: 1.5rem; }
+.records-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+.records-head h2 { margin-bottom: 0.25rem; }
+.records-head form { min-width: 16rem; }
+.records-head select { width: 100%; }
+.record-value {
+  max-width: 34rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+pre.code {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+.login-card {
+  width: min(380px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 2rem 1.75rem;
+  text-align: center;
+}
+.login-logo { margin-bottom: 0.5rem; }
+.login-card h1 { margin: 0; font-size: 1.5rem; }
+.login-card form {
+  display: flex; flex-direction: column; gap: 0.85rem;
+  text-align: left; margin-top: 1.25rem;
+}
+.login-card button { width: 100%; margin-top: 0.35rem; }
+
+.deploy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 16, 0.72);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.deploy-overlay[hidden] { display: none !important; }
+.deploy-modal {
+  width: min(560px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.25rem 1.35rem 1.1rem;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+.deploy-modal h2 { margin: 0 0 0.35rem; font-size: 1.2rem; }
+.deploy-status { margin: 0 0 0.85rem; }
+.deploy-bar {
+  height: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.85rem;
+}
+.deploy-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width 0.35s ease;
+}
+.deploy-log {
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  margin: 0 0 0.85rem;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.deploy-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+.deploy-actions a, .deploy-actions button {
+  display: inline-block;
+}
+
+@media (max-width: 800px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
+  .content { padding: 1.25rem; }
+  .records-head { flex-direction: column; }
+  .records-head form { min-width: 0; width: 100%; }
+}

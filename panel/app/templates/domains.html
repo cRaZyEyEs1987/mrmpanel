@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Domains — {{ title }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Domains{% if selected_user %} — {{ selected_user }}{% endif %}</h1>
+  <p class="muted">
+    Domains belong to an account independently of sites. A domain may itself be
+    a subdomain, such as <code>frank.example.com</code>, when it needs a
+    different owner and credentials.
+  </p>
+</header>
+{% if error %}<p class="alert error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
+{% if request.query_params.get('delete') == 'blocked' %}
+<p class="alert error">This domain still has sites. Delete those sites first.</p>
+{% endif %}
+
+<section class="card-form">
+  <h2>Add domain</h2>
+  <form method="post" action="/domains" class="grid-form">
+    {% if not selected_user %}
+    <label>Owner
+      <select name="username" required>
+        {% for account in hosting_users %}
+        <option value="{{ account.username }}">{{ account.display_name or account.username }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label>Domain
+      <input name="domain" required placeholder="example.com">
+    </label>
+    <button type="submit">Add domain</button>
+  </form>
+  <p class="muted">
+    To give <code>frank.example.com</code> separate credentials, add it here
+    directly and assign it to the other account. Exact domain assignments take
+    priority over their parent domain.
+  </p>
+</section>
+
+<table class="data">
+  <thead><tr><th>Domain</th><th>Owner</th><th>DNS</th><th></th></tr></thead>
+  <tbody>
+  {% for item in domain_list %}
+    <tr>
+      <td>{{ item.domain }}</td>
+      <td>{{ item.username }}</td>
+      <td>
+        {% if item.dns_zone == 'warning' %}
+          <span title="{{ item.dns_error }}">warning</span>
+        {% elif features.dns %}ready{% else %}external{% endif %}
+      </td>
+      <td class="row-actions">
+        <form method="post" action="/domains/{{ item.domain }}/delete"
+              onsubmit="return confirm('Delete domain assignment {{ item.domain }}?')">
+          <button type="submit" class="danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="muted">No domains in this account scope.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if domain_list %}
+<section class="card-form dns-records">
+  <div class="records-head">
+    <div>
+      <h2>DNS records</h2>
+      <p class="muted">All authoritative records for the selected domain.</p>
+    </div>
+    <form method="get" action="/domains">
+      <label>Domain
+        <select name="domain" onchange="this.form.submit()">
+          {% for item in domain_list %}
+          <option value="{{ item.domain }}" {% if item.domain == record_domain %}selected{% endif %}>
+            {{ item.domain }}{% if not selected_user %} — {{ item.username }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  </div>
+
+  {% if dns_records_error %}
+  <p class="alert error">Could not load DNS records: {{ dns_records_error }}</p>
+  {% elif dns_records_source == 'external' %}
+  <p class="alert info">
+    {{ record_domain }} uses external DNS. A DNS server cannot reliably list
+    every external record unless it hosts the zone.
+  </p>
+  {% else %}
+  <table class="data">
+    <thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Value</th></tr></thead>
+    <tbody>
+    {% for record in dns_record_rows %}
+      <tr>
+        <td><code>{{ record.name }}</code></td>
+        <td>{{ record.type }}</td>
+        <td>{{ record.ttl }}</td>
+        <td class="record-value"><code>{{ record.value }}</code></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="muted">No records found in this zone.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

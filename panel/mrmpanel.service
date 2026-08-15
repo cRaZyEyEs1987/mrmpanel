@@ -1,0 +1,21 @@
+[Unit]
+Description=mrmpanel control panel
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/mrmpanel/panel
+EnvironmentFile=-/etc/mrmpanel/panel.env
+Environment=MRMPANEL_DATA=/var/lib/mrmpanel
+Environment=MRMPANEL_STACKS=/opt/mrmpanel/stacks
+Environment=MRMPANEL_ASSETS=/opt/mrmpanel/assets
+Environment=MRMPANEL_FEATURES=/var/lib/mrmpanel/features.json
+Environment=PATH=/opt/mrmpanel/panel/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/opt/mrmpanel/panel/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
