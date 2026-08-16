@@ -2,7 +2,7 @@
 # mrmpanel installer — fresh servers only (Alma/Rocky/RHEL 9–10, Ubuntu 24.04)
 set -euo pipefail
 
-MRMPANEL_VERSION="0.1.24"
+MRMPANEL_VERSION="0.1.25"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Full installer lives in scripts/ — package root is one level up
 if [[ -d "${SCRIPT_DIR}/../panel" && -d "${SCRIPT_DIR}/../compose" ]]; then
@@ -903,6 +903,8 @@ install_jail_helpers() {
   mkdir -p /etc/mrmpanel /usr/local/bin
   install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-jail-shell" /usr/local/bin/mrmpanel-jail-shell
   install -m 0644 "${INSTALL_ROOT}/scripts/bashrc-jail" /etc/mrmpanel/bashrc-jail
+  install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-backup.sh" /usr/local/bin/mrmpanel-backup
+  install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-restore.sh" /usr/local/bin/mrmpanel-restore
   if ! grep -q '^/usr/local/bin/mrmpanel-jail-shell$' /etc/shells 2>/dev/null; then
     echo '/usr/local/bin/mrmpanel-jail-shell' >> /etc/shells
   fi
@@ -1257,6 +1259,8 @@ print_summary() {
       echo "  Webmail  : https://<managed-domain>/webmail/"
     fi
   fi
+  echo "  Backup   : sudo mrmpanel-backup"
+  echo "  Restore  : sudo mrmpanel-restore /var/backups/mrmpanel/<archive>.tar.gz"
   if [[ "$FEATURE_DNS" == "1" ]]; then
     echo
     echo "  DNS nameservers (set at your registrar with glue A records):"

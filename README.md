@@ -11,8 +11,9 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.24  
+**Current release:** 0.1.25  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel
+**Known-good baseline tag:** [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
 
 ## Requirements
 
@@ -52,6 +53,14 @@ curl -fsSL "$MRMPANEL_MIRROR/install.sh" | sudo bash -s -- --web --mail --mariad
 | `--non-interactive` | no prompts (needs `--hostname` and `MRMPANEL_ADMIN_PASSWORD`) |
 
 Features are stored in `/var/lib/mrmpanel/features.json`.
+
+## Baseline / upgrades
+
+- **Known-good freeze:** tag [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
+  (webmail SSO + production disclaimer). Pin with `MRMPANEL_VERSION=0.1.24`.
+- **Before any `--force` upgrade:** `sudo mrmpanel-backup`
+- **Rollback on the same server:** `sudo mrmpanel-restore /var/backups/mrmpanel/….tar.gz`
+- Details: [Backup & restore](docs/backup-restore.md)
 
 ## What you get
 
@@ -94,6 +103,7 @@ registrar.
 - [DNS & PTR](docs/dns.md)
 - [SSL](docs/ssl.md)
 - [Webmail](docs/webmail.md)
+- [Backup & restore](docs/backup-restore.md)
 
 ## Publishing updates (build / mirror host)
 
