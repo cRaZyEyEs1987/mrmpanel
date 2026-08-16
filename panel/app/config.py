@@ -103,6 +103,7 @@ def ensure_data_dirs() -> None:
         "plugins",
         "users",
         "dns",
+        "webmail-sso",
     ):
         try:
             (s.data_dir / sub).mkdir(parents=True, exist_ok=True)

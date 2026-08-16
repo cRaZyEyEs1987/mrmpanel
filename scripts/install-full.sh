@@ -2,7 +2,7 @@
 # mrmpanel installer — fresh servers only (Alma/Rocky/RHEL 9–10, Ubuntu 24.04)
 set -euo pipefail
 
-MRMPANEL_VERSION="0.1.21"
+MRMPANEL_VERSION="0.1.24"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Full installer lives in scripts/ — package root is one level up
 if [[ -d "${SCRIPT_DIR}/../panel" && -d "${SCRIPT_DIR}/../compose" ]]; then
@@ -668,7 +668,7 @@ copy_tree() {
   log "Installing mrmpanel files to ${INSTALL_ROOT}…"
   [[ -d "$PACKAGE_ROOT" && -f "${PACKAGE_ROOT}/scripts/install-full.sh" ]] \
     || die "Package source missing at ${PACKAGE_ROOT} (bootstrap deleted it?). Re-download install.sh and retry."
-  mkdir -p "$INSTALL_ROOT" "$DATA_ROOT"/{secrets,sites,mail/{data,state,logs,config},roundcube/mysql,mariadb,postgres,dismissed}
+  mkdir -p "$INSTALL_ROOT" "$DATA_ROOT"/{secrets,sites,mail/{data,state,logs,config},roundcube/mysql,webmail-sso,mariadb,postgres,dismissed}
   if command -v rsync &>/dev/null; then
     rsync -a --delete \
       --exclude '.git' \
@@ -717,7 +717,7 @@ EOF
 }
 
 gen_secrets() {
-  local mariadb_pw postgres_pw roundcube_pw admin_pw
+  local mariadb_pw postgres_pw roundcube_pw roundcube_des admin_pw
   mkdir -p "${DATA_ROOT}/secrets"
 
   # Resume / upgrade: keep the existing admin password unless env overrides it
@@ -731,6 +731,9 @@ gen_secrets() {
   if [[ -f "${DATA_ROOT}/secrets/postgres_password" && -z "${MRMPANEL_POSTGRES_PASSWORD:-}" ]]; then
     MRMPANEL_POSTGRES_PASSWORD="$(tr -d '\n' < "${DATA_ROOT}/secrets/postgres_password")"
   fi
+  if [[ -f "${DATA_ROOT}/secrets/roundcube_des_key" && -z "${MRMPANEL_ROUNDCUBE_DES_KEY:-}" ]]; then
+    MRMPANEL_ROUNDCUBE_DES_KEY="$(tr -d '\n' < "${DATA_ROOT}/secrets/roundcube_des_key")"
+  fi
   if [[ -f "${DATA_ROOT}/secrets/roundcube_db_password" && -z "${MRMPANEL_ROUNDCUBE_DB_PASSWORD:-}" ]]; then
     MRMPANEL_ROUNDCUBE_DB_PASSWORD="$(tr -d '\n' < "${DATA_ROOT}/secrets/roundcube_db_password")"
   fi
@@ -739,6 +742,8 @@ gen_secrets() {
   mariadb_pw="${MRMPANEL_MARIADB_ROOT_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)}"
   postgres_pw="${MRMPANEL_POSTGRES_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)}"
   roundcube_pw="${MRMPANEL_ROUNDCUBE_DB_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)}"
+  # Roundcube needs exactly 24 characters for its session cipher key.
+  roundcube_des="${MRMPANEL_ROUNDCUBE_DES_KEY:-$(openssl rand -base64 32 | tr -d '/+=' | head -c 24)}"
   if [[ -f "${DATA_ROOT}/secrets/pdns_api_key" && -z "${MRMPANEL_PDNS_API_KEY:-}" ]]; then
     pdns_key="$(tr -d '\n' < "${DATA_ROOT}/secrets/pdns_api_key")"
   else
@@ -767,12 +772,24 @@ gen_secrets() {
   printf '%s' "$mariadb_pw" > "${DATA_ROOT}/secrets/mariadb_root_password"
   printf '%s' "$postgres_pw" > "${DATA_ROOT}/secrets/postgres_password"
   printf '%s' "$roundcube_pw" > "${DATA_ROOT}/secrets/roundcube_db_password"
+  printf '%s' "$roundcube_des" > "${DATA_ROOT}/secrets/roundcube_des_key"
   printf '%s' "$admin_pw" > "${DATA_ROOT}/secrets/admin_password"
   printf '%s' "$pdns_key" > "${DATA_ROOT}/secrets/pdns_api_key"
+  # Placeholder so Roundcube can bind-mount this path before first SSO use.
+  if [[ ! -f "${DATA_ROOT}/secrets/webmail_master_password" ]]; then
+    openssl rand -base64 24 | tr -d '/+=' | head -c 32 > "${DATA_ROOT}/secrets/webmail_master_password"
+  fi
+  mkdir -p "${DATA_ROOT}/webmail-sso"
+  chmod 775 "${DATA_ROOT}/webmail-sso" 2>/dev/null || true
   chmod 600 "${DATA_ROOT}/secrets/"*
+  # Roundcube (uid 33) must read the master IMAP password.
+  chown root:33 "${DATA_ROOT}/secrets/webmail_master_password" 2>/dev/null || chmod 644 "${DATA_ROOT}/secrets/webmail_master_password"
+  chmod 640 "${DATA_ROOT}/secrets/webmail_master_password" 2>/dev/null || true
+  chown root:33 "${DATA_ROOT}/webmail-sso" 2>/dev/null || true
   export MRMPANEL_MARIADB_ROOT_PASSWORD="$mariadb_pw"
   export MRMPANEL_POSTGRES_PASSWORD="$postgres_pw"
   export MRMPANEL_ROUNDCUBE_DB_PASSWORD="$roundcube_pw"
+  export MRMPANEL_ROUNDCUBE_DES_KEY="$roundcube_des"
   export MRMPANEL_ADMIN_PASSWORD="$admin_pw"
   export MRMPANEL_PDNS_API_KEY="$pdns_key"
   ADMIN_PASSWORD="$admin_pw"
@@ -1094,6 +1111,29 @@ PY
   ) || warn "Could not generate webmail routes"
 }
 
+bootstrap_webmail_sso() {
+  [[ "$FEATURE_MAIL" == "1" && "$FEATURE_WEB" == "1" ]] || return 0
+  mkdir -p "${DATA_ROOT}/webmail-sso" "${DATA_ROOT}/secrets"
+  if [[ ! -f "${DATA_ROOT}/secrets/webmail_master_password" ]]; then
+    openssl rand -base64 24 | tr -d '/+=' | head -c 32 > "${DATA_ROOT}/secrets/webmail_master_password"
+  fi
+  chown root:33 "${DATA_ROOT}/secrets/webmail_master_password" 2>/dev/null || chmod 644 "${DATA_ROOT}/secrets/webmail_master_password"
+  chmod 640 "${DATA_ROOT}/secrets/webmail_master_password" 2>/dev/null || true
+  chown root:33 "${DATA_ROOT}/webmail-sso" 2>/dev/null || true
+  chmod 775 "${DATA_ROOT}/webmail-sso" 2>/dev/null || true
+  (
+    cd "${INSTALL_ROOT}/panel"
+    export PYTHONPATH="${INSTALL_ROOT}/panel${PYTHONPATH:+:$PYTHONPATH}"
+    MRMPANEL_DATA="$DATA_ROOT" MRMPANEL_FEATURES="$FEATURES_FILE" \
+      "${INSTALL_ROOT}/panel/.venv/bin/python" - <<'PY'
+from app.services.webmail_sso import ensure_webmail_master
+
+ensure_webmail_master()
+print("webmail SSO master account ready")
+PY
+  ) || warn "Could not bootstrap webmail SSO master account"
+}
+
 sync_operator_home_access() {
   (
     cd "${INSTALL_ROOT}/panel"
@@ -1124,7 +1164,7 @@ start_stack() {
   log "Starting compose profiles: $profiles"
   cd "$COMPOSE_DIR"
   export MRMPANEL_HOSTNAME="$SERVER_HOSTNAME"
-  export MRMPANEL_MARIADB_ROOT_PASSWORD MRMPANEL_POSTGRES_PASSWORD MRMPANEL_ROUNDCUBE_DB_PASSWORD
+  export MRMPANEL_MARIADB_ROOT_PASSWORD MRMPANEL_POSTGRES_PASSWORD MRMPANEL_ROUNDCUBE_DB_PASSWORD MRMPANEL_ROUNDCUBE_DES_KEY
   export MRMPANEL_MAIL_DOMAIN MRMPANEL_PDNS_API_KEY
   mkdir -p "${DATA_ROOT}/dns"
   # PowerDNS container runs as uid/gid 953
@@ -1156,6 +1196,7 @@ start_stack() {
   bootstrap_mail_account
   sync_mail_tls
   sync_webmail_routes
+  bootstrap_webmail_sso
   # PYTHONPATH for bootstrap_dns_zone
   if [[ "$FEATURE_DNS" == "1" ]]; then
     (

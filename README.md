@@ -6,7 +6,12 @@ databases, DNS, SSL, and webmail from one admin UI.
 One host Docker engine, Traefik reverse proxy, one container per site hostname,
 optional shared mail/SQL/DNS. No Docker-in-Docker.
 
-**Current release:** 0.1.21  
+> **Warning — not for production.** mrmpanel is early / experimental software.
+> Do **not** use it for production workloads. If you install or run it, you do
+> so **at your own risk**. There is no warranty; expect bugs, breaking changes,
+> and incomplete features.
+
+**Current release:** 0.1.24  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel
 
 ## Requirements
@@ -57,7 +62,7 @@ Features are stored in `/var/lib/mrmpanel/features.json`.
   PHP, Node, Python stacks
 - **Databases** — MariaDB / PostgreSQL, site-linked or standalone
 - **Mail** — mailboxes under `/home/<user>/<email>/maildir`
-- **Webmail** — one shared Roundcube at `https://<domain>/webmail/`
+- **Webmail** — one shared Roundcube at `https://<domain>/webmail/` (passwordless **Open in webmail** from the Mail menu)
 - **DNS** — PowerDNS zones, MX/SPF/DKIM/DMARC helpers, Domains page record table
 - **SSL** — Let's Encrypt via Traefik; dashboard warnings + activate button
 - **Operator ACL** — the sudo account that installed the panel can manage all

@@ -1,0 +1,6 @@
+{
+    "name": "mrmpanel_sso",
+    "version": "1.0.0",
+    "license": "MIT",
+    "src": "mrmpanel_sso.php"
+}

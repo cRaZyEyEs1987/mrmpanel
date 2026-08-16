@@ -26,7 +26,7 @@
 {% else %}
 <section class="card-form">
   <h2>Webmail</h2>
-  <p>One shared Roundcube installation serves every managed domain. Sign in with the full mailbox address.</p>
+  <p>One shared Roundcube installation serves every managed domain. Use <strong>Open in webmail</strong> next to a mailbox for passwordless sign-in, or open Roundcube and sign in with the mailbox password.</p>
   <p><a class="button" href="https://{{ selected_domain }}/webmail/" target="_blank" rel="noopener">Open {{ selected_domain }} webmail</a></p>
 </section>
 
@@ -88,12 +88,20 @@
 </section>
 
 <table class="data">
-  <thead><tr><th>Mailboxes</th></tr></thead>
+  <thead><tr><th>Mailboxes</th><th></th></tr></thead>
   <tbody>
   {% for m in mailboxes %}
-    <tr><td>{{ m }}</td></tr>
+    <tr>
+      <td>{{ m }}</td>
+      <td>
+        <form method="post" action="/mail/webmail-sso" class="inline" target="_blank">
+          <input type="hidden" name="email" value="{{ m }}">
+          <button type="submit">Open in webmail</button>
+        </form>
+      </td>
+    </tr>
   {% else %}
-    <tr><td class="muted">No mailboxes yet</td></tr>
+    <tr><td colspan="2" class="muted">No mailboxes yet</td></tr>
   {% endfor %}
   </tbody>
 </table>

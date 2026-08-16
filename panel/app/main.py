@@ -22,6 +22,7 @@ from .services import (
     sites,
     stacks,
     users,
+    webmail_sso,
 )
 
 ensure_data_dirs()
@@ -771,6 +772,33 @@ async def mail_dismiss(request: Request, key: str):
     return RedirectResponse("/mail", status_code=303)
 
 
+@app.post("/mail/webmail-sso")
+async def mail_webmail_sso(request: Request, email: str = Form(...)):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    email = email.strip().lower()
+    selected = selected_admin_user(request)
+    allowed = domains.domain_names_for_user(selected) if selected else [
+        item["domain"] for item in domains.list_domains()
+    ]
+    domain = email.split("@", 1)[1] if "@" in email else ""
+    try:
+        if "@" not in email:
+            raise ValueError("Invalid mailbox address")
+        if domain not in {d.lower() for d in allowed}:
+            raise ValueError("Mailbox is outside the selected account scope")
+        known = {m.lower() for m in mail.list_mailboxes_for_domains(allowed)}
+        if email not in known:
+            raise ValueError("Unknown mailbox")
+        return RedirectResponse(webmail_sso.webmail_sso_url(email), status_code=303)
+    except Exception as e:
+        return templates.TemplateResponse(
+            "mail.html",
+            _admin_mail_ctx(request, domain, error=str(e)),
+        )
+
+
 @app.post("/warnings/dismiss/{key}")
 async def warn_dismiss(request: Request, key: str):
     gate = require_admin(request)
@@ -1483,6 +1511,44 @@ async def user_mail_dismiss(request: Request, key: str):
     if any(key.startswith(f"{d}:") for d in domains):
         mail.dismiss_warning(key, username=username)
     return RedirectResponse("/u/mail", status_code=303)
+
+
+@app.post("/u/mail/webmail-sso")
+async def user_mail_webmail_sso(request: Request, email: str = Form(...)):
+    gate = require_hosting_user(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    username = gate["username"]
+    user_domains = sites.user_domains(username)
+    email = email.strip().lower()
+    error = None
+    selected = user_domains[0] if user_domains else ""
+    try:
+        if "@" not in email:
+            raise ValueError("Invalid mailbox address")
+        selected = email.split("@", 1)[1]
+        if selected not in {d.lower() for d in user_domains}:
+            raise ValueError("You can only open webmail for your own mailboxes")
+        known = {m.lower() for m in mail.list_mailboxes_for_domains(user_domains)}
+        if email not in known:
+            raise ValueError("Unknown mailbox")
+        return RedirectResponse(webmail_sso.webmail_sso_url(email), status_code=303)
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "user/mail.html",
+        ctx(
+            request,
+            domains=user_domains,
+            selected_domain=selected,
+            guidance=mail.dns_guidance(selected) if selected else None,
+            mailboxes=mail.list_mailboxes_for_domains(user_domains),
+            domain_warnings=mail.user_domain_warnings(username, user_domains),
+            error=error,
+            ok=None,
+            dkim_result=None,
+        ),
+    )
 
 
 @app.get("/u/settings", response_class=HTMLResponse)

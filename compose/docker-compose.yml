@@ -146,13 +146,20 @@ services:
       ROUNDCUBEMAIL_DB_NAME: roundcube
       ROUNDCUBEMAIL_DB_USER: roundcube
       ROUNDCUBEMAIL_DB_PASSWORD: ${MRMPANEL_ROUNDCUBE_DB_PASSWORD:-changeme}
+      # Pinned so recreating this container does not invalidate stored session
+      # passwords (which surfaced as "Empty password" IMAP errors).
+      ROUNDCUBEMAIL_DES_KEY: ${MRMPANEL_ROUNDCUBE_DES_KEY:-mrmpanelDefaultDesKey24}
       ROUNDCUBEMAIL_DEFAULT_HOST: ssl://${MRMPANEL_HOSTNAME:-mail}
       ROUNDCUBEMAIL_DEFAULT_PORT: 993
       ROUNDCUBEMAIL_SMTP_SERVER: tls://${MRMPANEL_HOSTNAME:-mail}
       ROUNDCUBEMAIL_SMTP_PORT: 587
       ROUNDCUBEMAIL_REQUEST_PATH: /webmail
       ROUNDCUBEMAIL_SKIN: elastic
-      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,mrmpanel_sso
+    volumes:
+      - ./roundcube/plugins/mrmpanel_sso:/var/www/html/plugins/mrmpanel_sso:ro
+      - /var/lib/mrmpanel/webmail-sso:/var/lib/mrmpanel/webmail-sso
+      - /var/lib/mrmpanel/secrets/webmail_master_password:/var/lib/mrmpanel/secrets/webmail_master_password:ro
     networks:
       - mrmpanel
     labels:
