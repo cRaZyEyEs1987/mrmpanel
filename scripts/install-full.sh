@@ -903,8 +903,11 @@ install_jail_helpers() {
   mkdir -p /etc/mrmpanel /usr/local/bin
   install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-jail-shell" /usr/local/bin/mrmpanel-jail-shell
   install -m 0644 "${INSTALL_ROOT}/scripts/bashrc-jail" /etc/mrmpanel/bashrc-jail
-  install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-backup.sh" /usr/local/bin/mrmpanel-backup
-  install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-restore.sh" /usr/local/bin/mrmpanel-restore
+  install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-backup.sh" /usr/sbin/mrmpanel-backup
+  install -m 0755 "${INSTALL_ROOT}/scripts/mrmpanel-restore.sh" /usr/sbin/mrmpanel-restore
+  # Compatibility for hosts that already look in /usr/local/bin
+  ln -sfn /usr/sbin/mrmpanel-backup /usr/local/bin/mrmpanel-backup
+  ln -sfn /usr/sbin/mrmpanel-restore /usr/local/bin/mrmpanel-restore
   if ! grep -q '^/usr/local/bin/mrmpanel-jail-shell$' /etc/shells 2>/dev/null; then
     echo '/usr/local/bin/mrmpanel-jail-shell' >> /etc/shells
   fi
