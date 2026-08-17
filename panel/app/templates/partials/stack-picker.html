@@ -1,0 +1,28 @@
+<fieldset class="deploy-step stack-step">
+  <legend><span>2</span> Choose a stack</legend>
+  <p class="step-help">Pick what this site will run. Runtime and database options appear below.</p>
+  <input type="hidden" name="stack_id" value="{{ stack_list[0].id if stack_list else '' }}" required data-stack-select>
+  <div class="stack-picker">
+    {% for s in stack_list %}
+    <label class="stack-card">
+      <input type="radio" name="stack_choice" value="{{ s.id }}"
+        data-stack-choice
+        data-versions="{{ (s.versions or [])|join(',') }}"
+        data-default="{{ s.default_version or '' }}"
+        {% if loop.first %}checked{% endif %}>
+      <span class="stack-card-body">
+        <span class="stack-card-head">
+          <strong>{{ s.name }}</strong>
+          <span class="stack-category">{{ s.category or 'app' }}</span>
+        </span>
+        <span class="stack-description">{{ s.description or 'Application runtime' }}</span>
+        <span class="stack-meta">
+          {% if s.default_version %}Default {{ s.default_version }}{% else %}Managed image{% endif %}
+          ·
+          {% if s.requires %}Needs {{ s.requires|join(' + ') }}{% else %}No database required{% endif %}
+        </span>
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+</fieldset>

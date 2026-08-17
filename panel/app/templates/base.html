@@ -19,11 +19,19 @@
       </a>
       {% if is_admin %}
       <p class="nav-role">Administrator</p>
+      <nav class="nav-global" aria-label="Global administration">
+        <p class="nav-section-title">Global</p>
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+        <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">Users</a>
+        <a href="/settings" class="{% if request.url.path.startswith('/settings') %}active{% endif %}">Global settings</a>
+      </nav>
+      <div class="nav-account">
+      <p class="nav-section-title">Account</p>
+      {% if admin_users %}
       <form method="post" action="/admin/select-user" class="user-scope">
         <input type="hidden" name="next_url" value="{{ request.url.path }}">
-        <label for="admin-user-scope">View account</label>
+        <label for="admin-user-scope">Working in</label>
         <select id="admin-user-scope" name="username" onchange="this.form.submit()">
-          <option value="" {% if not selected_user %}selected{% endif %}>All users</option>
           {% for account in admin_users %}
           <option value="{{ account.username }}" {% if selected_user == account.username %}selected{% endif %}>
             {{ account.display_name or account.username }}
@@ -31,27 +39,28 @@
           {% endfor %}
         </select>
       </form>
-      <nav>
-        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
-        <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}">Users</a>
-        <a href="/domains" class="{% if request.url.path.startswith('/domains') %}active{% endif %}">Domains</a>
+      <nav class="nav-scoped" aria-label="Selected account tools">
+        <a href="/domains" class="nav-child {% if request.url.path.startswith('/domains') %}active{% endif %}">Domains</a>
         {% if features.web %}
-        <a href="/sites" class="{% if request.url.path.startswith('/sites') %}active{% endif %}">Sites</a>
+        <a href="/sites" class="nav-child {% if request.url.path.startswith('/sites') %}active{% endif %}">Sites</a>
         {% endif %}
         {% if features.mariadb or features.postgres %}
-        <a href="/databases" class="{% if request.url.path.startswith('/databases') %}active{% endif %}">Databases</a>
+        <a href="/databases" class="nav-child {% if request.url.path.startswith('/databases') %}active{% endif %}">Databases</a>
         {% endif %}
         {% if features.mail %}
-        <a href="/mail" class="{% if request.url.path.startswith('/mail') %}active{% endif %}">Mail</a>
+        <a href="/mail" class="nav-child {% if request.url.path.startswith('/mail') %}active{% endif %}">Mail</a>
         {% else %}
-        <a href="/mail" class="dim">Mail <span class="badge">off</span></a>
+        <a href="/mail" class="nav-child dim">Mail <span class="badge">off</span></a>
         {% endif %}
-        <a href="/plugins" class="{% if request.url.path.startswith('/plugins') %}active{% endif %}">Plugins</a>
-        <a href="/settings" class="{% if request.url.path.startswith('/settings') %}active{% endif %}">Global settings</a>
+        <a href="/plugins" class="nav-child {% if request.url.path.startswith('/plugins') %}active{% endif %}">Plugins</a>
       </nav>
       {% else %}
+      <p class="nav-empty">Create a user to unlock account tools.</p>
+      {% endif %}
+      </div>
+      {% else %}
       <p class="nav-role">{{ user.display_name or user.username }}</p>
-      <nav>
+      <nav class="nav-user">
         <a href="/u/" class="{% if request.url.path == '/u/' %}active{% endif %}">Dashboard</a>
         <a href="/u/domains" class="{% if request.url.path.startswith('/u/domains') %}active{% endif %}">My domains</a>
         {% if features.web %}

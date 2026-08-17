@@ -14,66 +14,73 @@
   {% if not managed_domains %}
   <p class="alert info">Add a domain before deploying a site. <a href="/domains">Open Domains</a>.</p>
   {% else %}
-  <form method="post" action="/sites" class="grid-form" data-version-form data-domain-form data-deploy-api="/api/sites/deploy">
-    {% if selected_user %}
-    <input type="hidden" name="username" value="{{ selected_user }}">
-    {% else %}
-    <label>Owner
-      <select name="username" required data-owner-select>
-        {% for u in hosting_users %}
-        <option value="{{ u.username }}">{{ u.username }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    {% endif %}
-    <label>Managed domain
-      <select name="managed_domain" required data-domain-select>
-        {% for item in managed_domains %}
-        <option value="{{ item.domain }}" data-owner="{{ item.username }}">{{ item.domain }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>Site address
-      <select name="site_kind" data-site-kind>
-        <option value="domain">Use the domain itself</option>
-        <option value="subdomain">Create a subdomain</option>
-      </select>
-    </label>
-    <label data-subdomain-field hidden>Subdomain
-      <input name="subdomain" data-subdomain-input placeholder="frank">
-    </label>
-    <label>Stack
-      <select name="stack_id" required data-stack-select>
-        {% for s in stack_list %}
-        <option value="{{ s.id }}"
-          data-versions="{{ (s.versions or [])|join(',') }}"
-          data-default="{{ s.default_version or '' }}">{{ s.name }}{% if s.requires %} (needs {{ s.requires|join(', ') }}){% endif %}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label data-version-field hidden>Runtime version
-      <select name="version" data-version-select></select>
-    </label>
-    <label>Database
-      <select name="create_db">
-        <option value="auto">Auto (from template)</option>
-        {% if features.mariadb %}<option value="mariadb">MariaDB</option>{% endif %}
-        {% if features.postgres %}<option value="postgres">PostgreSQL</option>{% endif %}
-        <option value="none">None</option>
-      </select>
-    </label>
-    <div data-wordpress-fields hidden>
-      <label>WP site title<input name="wp_title" placeholder="My Site"></label>
-      <label>WP admin username<input name="wp_admin_user" value="admin" autocomplete="off"></label>
-      <label>WP admin password<input type="password" name="wp_admin_password" required disabled data-wp-pass placeholder="Choose a password"></label>
-      <label>WP admin email<input type="email" name="wp_admin_email" placeholder="admin@example.com"></label>
-      <p class="muted">Database is created automatically. WordPress installs with this admin account — no setup wizard.</p>
+  <form method="post" action="/sites" class="deploy-form" data-version-form data-domain-form data-deploy-api="/api/sites/deploy">
+    <fieldset class="deploy-step">
+      <legend><span>1</span> Site address</legend>
+      <p class="step-help">Choose the account domain and whether to use it directly or create a subdomain.</p>
+      <div class="deploy-fields">
+        <input type="hidden" name="username" value="{{ selected_user }}">
+        <label>Managed domain
+          <select name="managed_domain" required data-domain-select>
+            {% for item in managed_domains %}
+            <option value="{{ item.domain }}" data-owner="{{ item.username }}">{{ item.domain }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Site address
+          <select name="site_kind" data-site-kind>
+            <option value="domain">Use the domain itself</option>
+            <option value="subdomain">Create a subdomain</option>
+          </select>
+        </label>
+        <label data-subdomain-field hidden>Subdomain
+          <input name="subdomain" data-subdomain-input placeholder="shop">
+        </label>
+      </div>
+    </fieldset>
+
+    {% include "partials/stack-picker.html" %}
+
+    <fieldset class="deploy-step">
+      <legend><span>3</span> Runtime and data</legend>
+      <p class="step-help">The recommended defaults work for most deployments.</p>
+      <div class="deploy-fields">
+        <label data-version-field hidden>Runtime version
+          <select name="version" data-version-select></select>
+        </label>
+        <label>Database
+          <select name="create_db">
+            <option value="auto">Recommended automatically</option>
+            {% if features.mariadb %}<option value="mariadb">MariaDB</option>{% endif %}
+            {% if features.postgres %}<option value="postgres">PostgreSQL</option>{% endif %}
+            <option value="none">No database</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="deploy-step app-details" data-wordpress-fields hidden>
+      <legend><span>4</span> WordPress setup</legend>
+      <div class="deploy-fields">
+        <label>Site title<input name="wp_title" placeholder="My Site"></label>
+        <label>Admin username<input name="wp_admin_user" value="admin" autocomplete="off"></label>
+        <label>Admin password<input type="password" name="wp_admin_password" required disabled data-wp-pass placeholder="Choose a password"></label>
+        <label>Admin email<input type="email" name="wp_admin_email" placeholder="admin@example.com"></label>
+      </div>
+      <p class="step-help">The database and WordPress installation are created automatically.</p>
+    </fieldset>
+    <fieldset class="deploy-step app-details" data-laravel-fields hidden>
+      <legend><span>4</span> Laravel setup</legend>
+      <div class="deploy-fields">
+        <label>Application name<input name="app_name" placeholder="My Laravel App"></label>
+      </div>
+      <p class="step-help">Composer installs Laravel, writes <code>.env</code>, generates <code>APP_KEY</code>, and runs migrations.</p>
+    </fieldset>
+
+    <div class="deploy-submit">
+      <span class="muted">Review your choices, then start the deployment.</span>
+      <button type="submit">Deploy site</button>
     </div>
-    <div data-laravel-fields hidden>
-      <label>App name<input name="app_name" placeholder="My Laravel App"></label>
-      <p class="muted">Installs a full Laravel app with Composer, writes <code>.env</code>, generates <code>APP_KEY</code>, and runs migrations. Document root is <code>/public</code>.</p>
-    </div>
-    <button type="submit">Deploy</button>
   </form>
   {% endif %}
 </section>

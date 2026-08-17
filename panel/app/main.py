@@ -58,8 +58,10 @@ def ctx(request: Request, **extra: Any) -> dict[str, Any]:
     allowed_users = {item["username"] for item in hosting_users}
     selected_user = str(request.session.get("admin_selected_user") or "")
     if selected_user not in allowed_users:
-        selected_user = ""
-        if admin:
+        selected_user = hosting_users[0]["username"] if hosting_users else ""
+        if admin and selected_user:
+            request.session["admin_selected_user"] = selected_user
+        elif admin:
             request.session.pop("admin_selected_user", None)
     return {
         "request": request,
@@ -118,9 +120,14 @@ def require_hosting_user(request: Request) -> dict[str, Any] | RedirectResponse:
 
 
 def selected_admin_user(request: Request) -> str:
-    """Selected sidebar scope; empty means all hosting users."""
+    """Selected account scope; default to the first hosting user."""
     selected = str(request.session.get("admin_selected_user") or "")
     if selected and users.get_hosting_user(selected):
+        return selected
+    hosting_users = users.list_hosting_users()
+    if hosting_users:
+        selected = hosting_users[0]["username"]
+        request.session["admin_selected_user"] = selected
         return selected
     request.session.pop("admin_selected_user", None)
     return ""
@@ -175,7 +182,8 @@ async def admin_select_user(
         return gate
     username = username.strip()
     if username and not users.get_hosting_user(username):
-        username = ""
+        hosting_users = users.list_hosting_users()
+        username = hosting_users[0]["username"] if hosting_users else ""
     if username:
         request.session["admin_selected_user"] = username
     else:
@@ -196,20 +204,13 @@ async def dashboard(request: Request):
     features = load_features()
     hostname_ssl = certs.hostname_ssl_status(features.get("hostname") or "")
     connection = connection_status(request)
-    selected = selected_admin_user(request)
-    scoped_sites = sites.list_sites_for_user(selected) if selected else sites.list_sites()
-    scoped_domains = domains.domain_names_for_user(selected) if selected else []
     return templates.TemplateResponse(
         "dashboard.html",
         ctx(
             request,
-            site_count=len(scoped_sites),
+            site_count=len(sites.list_sites()),
             user_count=len(users.list_hosting_users()),
-            mail_status=(
-                mail.user_domain_warnings(selected, scoped_domains)
-                if selected
-                else mail.mail_status()
-            ),
+            mail_status=mail.mail_status(),
             available_stacks=stacks.list_stacks(),
             hostname_ssl=hostname_ssl,
             connection=connection,

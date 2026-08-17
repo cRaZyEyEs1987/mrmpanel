@@ -1,11 +1,24 @@
 (function () {
+  function selectedStack(form) {
+    var choice = form.querySelector("[data-stack-choice]:checked");
+    var stackInput = form.querySelector("[data-stack-select]");
+    if (choice && stackInput) {
+      stackInput.value = choice.value;
+      return choice;
+    }
+    if (stackInput && stackInput.options) {
+      return stackInput.options[stackInput.selectedIndex];
+    }
+    return null;
+  }
+
   function syncVersionField(form) {
-    var stackSelect = form.querySelector("[data-stack-select]");
     var versionField = form.querySelector("[data-version-field]");
     var versionSelect = form.querySelector("[data-version-select]");
-    if (!stackSelect || !versionField || !versionSelect) return;
+    if (!versionField || !versionSelect) return;
 
-    var opt = stackSelect.options[stackSelect.selectedIndex];
+    var opt = selectedStack(form);
+    if (!opt) return;
     var versions = (opt.getAttribute("data-versions") || "")
       .split(",")
       .map(function (v) {
@@ -35,11 +48,11 @@
   }
 
   function syncWordpressFields(form) {
-    var stackSelect = form.querySelector("[data-stack-select]");
     var wpFields = form.querySelector("[data-wordpress-fields]");
     var wpPass = form.querySelector("[data-wp-pass]");
-    if (!stackSelect || !wpFields) return;
-    var isWp = stackSelect.value === "wordpress";
+    var stack = selectedStack(form);
+    if (!stack || !wpFields) return;
+    var isWp = stack.value === "wordpress";
     wpFields.hidden = !isWp;
     if (wpPass) {
       if (isWp) {
@@ -54,22 +67,26 @@
   }
 
   function syncLaravelFields(form) {
-    var stackSelect = form.querySelector("[data-stack-select]");
     var laravelFields = form.querySelector("[data-laravel-fields]");
-    if (!stackSelect || !laravelFields) return;
-    laravelFields.hidden = stackSelect.value !== "laravel";
+    var stack = selectedStack(form);
+    if (!stack || !laravelFields) return;
+    laravelFields.hidden = stack.value !== "laravel";
   }
 
   document.querySelectorAll("[data-version-form]").forEach(function (form) {
     var stackSelect = form.querySelector("[data-stack-select]");
     if (!stackSelect) return;
-    stackSelect.addEventListener("change", function () {
+    function syncStack() {
       syncVersionField(form);
       syncWordpressFields(form);
       syncLaravelFields(form);
+    }
+    if (stackSelect.tagName === "SELECT") {
+      stackSelect.addEventListener("change", syncStack);
+    }
+    form.querySelectorAll("[data-stack-choice]").forEach(function (choice) {
+      choice.addEventListener("change", syncStack);
     });
-    syncVersionField(form);
-    syncWordpressFields(form);
-    syncLaravelFields(form);
+    syncStack();
   });
 })();
