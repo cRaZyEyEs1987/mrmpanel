@@ -11,9 +11,18 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.28
-**Source:** https://github.com/cRaZyEyEs1987/mrmpanel
+**Current release:** 0.1.28  
+**Docs / install guides (human-readable):** https://hostingandstuff.online  
+**Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
 **Known-good baseline tag:** [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
+
+Compare panels, VPS picks, and mail caveats on the public site:
+
+- [Install on Ubuntu 24.04](https://hostingandstuff.online/install/ubuntu-24-04/)
+- [CyberPanel vs mrmpanel](https://hostingandstuff.online/compare/cyberpanel-vs-mrmpanel/)
+- [Hestia vs mrmpanel](https://hostingandstuff.online/compare/hestia-vs-mrmpanel/)
+- [Cheap VPS for a WordPress panel](https://hostingandstuff.online/compare/cheap-vps-wordpress-panel/)
+- [Changelog / notes](https://hostingandstuff.online/notes/)
 
 ## Requirements
 
