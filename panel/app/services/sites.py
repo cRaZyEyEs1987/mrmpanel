@@ -96,6 +96,10 @@ def _write_starters(domain_dir: Path, stack: dict[str, Any]) -> None:
             target.write_text(item.get("content", ""))
 
 
+def container_name_for(username: str, domain: str) -> str:
+    return _container_name(username, domain)
+
+
 def _container_name(username: str, domain: str) -> str:
     safe = domain.replace(".", "-")
     return f"mrm-{username}-{safe}"[:63]
@@ -380,6 +384,19 @@ def deploy_site(
     features = load_features()
     if not features.get("web"):
         raise RuntimeError("Web feature is not installed")
+
+    from . import plans as plans_svc
+
+    existing = next(
+        (
+            s
+            for s in list_sites_for_user(username)
+            if str(s.get("domain") or "").lower() == domain.strip().lower()
+        ),
+        None,
+    )
+    if not existing:
+        plans_svc.assert_can_add_site(username)
 
     p("Validating stack…", 5)
     stack = get_stack(stack_id)

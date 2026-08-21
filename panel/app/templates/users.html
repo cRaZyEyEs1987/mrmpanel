@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-head">
   <h1>Hosting users</h1>
-  <p class="muted">Each user gets an OS account, a home jail, and a panel login (same password) for their own dashboard.</p>
+  <p class="muted">Each user gets an OS account, a home jail, a plan/quota, and a panel login for their own dashboard.</p>
 </header>
 {% if error %}<p class="alert error">{{ error }}</p>{% endif %}
 {% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
@@ -14,18 +14,125 @@
     <label>Username<input name="username" pattern="[a-z][a-z0-9_]{2,31}" required placeholder="alice"></label>
     <label>Display name<input name="display_name" placeholder="Alice"></label>
     <label>Password<input type="password" name="password" required></label>
+    <label>Plan
+      <select name="plan_id" required>
+        {% for p in plan_list %}
+        <option value="{{ p.id }}" {% if p.id == 'unlimited' %}selected{% endif %}>
+          {{ p.name }}
+          (disk {{ format_limit(p.disk_gb) }}{% if p.disk_gb is not none %} GB{% endif %},
+          {{ format_limit(p.domains) }} domains,
+          {{ format_limit(p.sites) }} sites,
+          {{ format_limit(p.mailboxes) }} mail)
+        </option>
+        {% endfor %}
+      </select>
+    </label>
     <button type="submit">Create</button>
   </form>
 </section>
 
-<table class="data">
-  <thead><tr><th>User</th><th>Home</th><th>Created</th></tr></thead>
-  <tbody>
-  {% for u in hosting_users %}
-    <tr><td>{{ u.username }}</td><td><code>{{ u.home }}</code></td><td>{{ u.created_at }}</td></tr>
-  {% else %}
-    <tr><td colspan="3" class="muted">No users yet</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<section class="ops-section">
+  <h2>Users</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Plan</th>
+          <th>Usage</th>
+          <th>Created</th>
+          <th>Change plan</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in hosting_users %}
+        <tr>
+          <td>
+            <strong>{{ u.username }}</strong>
+            {% if u.display_name and u.display_name != u.username %}
+            <div class="muted tiny">{{ u.display_name }}</div>
+            {% endif %}
+            <div class="muted tiny"><code>{{ u.home }}</code></div>
+          </td>
+          <td>{{ u.quota.plan.name if u.quota else (u.plan_id or 'unlimited') }}</td>
+          <td class="muted tiny">
+            {% if u.quota %}
+              {{ u.quota.usage.disk_gb }}{% if u.quota.limits.disk_gb is not none %}/{{ u.quota.limits.disk_gb }}{% endif %} GB ·
+              {{ u.quota.usage.domains }}{% if u.quota.limits.domains is not none %}/{{ u.quota.limits.domains }}{% endif %} dom ·
+              {{ u.quota.usage.sites }}{% if u.quota.limits.sites is not none %}/{{ u.quota.limits.sites }}{% endif %} sites ·
+              {{ u.quota.usage.mailboxes }}{% if u.quota.limits.mailboxes is not none %}/{{ u.quota.limits.mailboxes }}{% endif %} mail
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ u.created_at }}</td>
+          <td>
+            <form method="post" action="/users/{{ u.username }}/plan" class="inline-plan">
+              <select name="plan_id">
+                {% for p in plan_list %}
+                <option value="{{ p.id }}" {% if (u.plan_id or 'unlimited') == p.id %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn-muted">Save</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted">No users yet</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="ops-section">
+  <h2>Hosting plans</h2>
+  <p class="muted">Only administrators can create, edit, or remove plans. Leave a limit blank for Infinite.</p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Plan</th>
+          <th>Disk</th>
+          <th>Domains</th>
+          <th>Sites</th>
+          <th>Mailboxes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in plan_list %}
+        <tr>
+          <td colspan="6" class="plan-edit-row">
+            <form method="post" action="/plans/{{ p.id }}/update" class="grid-form plan-edit">
+              <label>Name<input name="name" value="{{ p.name }}" required></label>
+              <label>Disk GB<input name="disk_gb" value="{{ '' if p.disk_gb is none else p.disk_gb }}" placeholder="Infinite"></label>
+              <label>Domains<input name="domains_limit" value="{{ '' if p.domains is none else p.domains }}" placeholder="Infinite"></label>
+              <label>Sites<input name="sites_limit" value="{{ '' if p.sites is none else p.sites }}" placeholder="Infinite"></label>
+              <label>Mailboxes<input name="mailboxes_limit" value="{{ '' if p.mailboxes is none else p.mailboxes }}" placeholder="Infinite"></label>
+              <div class="svc-actions">
+                <button type="submit">Save</button>
+                {% if p.id != 'unlimited' %}
+                <button type="submit" formaction="/plans/{{ p.id }}/delete" formmethod="post" class="btn-danger"
+                  onclick="return confirm('Delete plan {{ p.name }}?');">Delete</button>
+                {% endif %}
+              </div>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <section class="card-form" style="margin-top:1rem">
+    <h2>Add plan</h2>
+    <form method="post" action="/plans" class="grid-form">
+      <label>Name<input name="name" required placeholder="Pro"></label>
+      <label>Disk GB<input name="disk_gb" placeholder="Infinite"></label>
+      <label>Domains<input name="domains_limit" placeholder="Infinite"></label>
+      <label>Sites<input name="sites_limit" placeholder="Infinite"></label>
+      <label>Mailboxes<input name="mailboxes_limit" placeholder="Infinite"></label>
+      <button type="submit">Create plan</button>
+    </form>
+  </section>
+</section>
 {% endblock %}

@@ -390,6 +390,10 @@ def add_mailbox(email: str, password: str, username: str | None = None) -> Path 
         raise RuntimeError("Mail not installed")
     email = email.strip().lower()
     owner = resolve_mailbox_owner(email, username)
+    if owner:
+        from . import plans as plans_svc
+
+        plans_svc.assert_can_add_mailbox(owner)
     maildir: Path | None = None
     if owner:
         maildir = prepare_user_maildir(owner, email)

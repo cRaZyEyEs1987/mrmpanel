@@ -2,9 +2,12 @@
 {% block title %}Dashboard — {{ title }}{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>Admin dashboard</h1>
-  <p class="muted">{{ features.hostname }} · server-wide controls (hosting users use their own dashboard at <code>/u/</code>)</p>
+  <h1>Server overview</h1>
+  <p class="muted">{{ features.hostname }} · {{ features.public_ip or 'no public IP' }} · v{{ features.version }}</p>
 </header>
+
+{% if flash_ok %}<p class="alert ok">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<pre class="alert error service-error">{{ flash_error }}</pre>{% endif %}
 
 {% if not connection.secure %}
 <section class="alert error connection-warning">
@@ -58,53 +61,135 @@
   {% endif %}
 {% endif %}
 
-<section class="module-grid">
-  <article class="mod {% if features.web %}on{% else %}off{% endif %}">
-    <h2>Web</h2>
-    <p>{% if features.web %}Active · {{ site_count }} site(s){% else %}Not installed{% endif %}</p>
-  </article>
-  <article class="mod {% if features.mail %}on{% else %}off{% endif %}">
-    <h2>Mail</h2>
-    <p>{% if features.mail %}Active{% else %}Not installed — no mail UI{% endif %}</p>
-  </article>
-  <article class="mod {% if features.mariadb %}on{% else %}off{% endif %}">
-    <h2>MariaDB</h2>
-    <p>{% if features.mariadb %}Active{% else %}Not installed{% endif %}</p>
-  </article>
-  <article class="mod {% if features.postgres %}on{% else %}off{% endif %}">
-    <h2>PostgreSQL</h2>
-    <p>{% if features.postgres %}Active{% else %}Not installed{% endif %}</p>
-  </article>
-  <article class="mod on">
-    <h2>Users</h2>
-    <p>{{ user_count }} hosting account(s)</p>
-  </article>
-  <article class="mod on">
-    <h2>Stacks</h2>
-    <p>{{ available_stacks|length }} template(s) available</p>
-  </article>
-</section>
-
-{% if features.mail and mail_status.warnings %}
-<section class="warn-list">
-  <h2>Mail / DNS notices</h2>
-  {% for w in mail_status.warnings %}
-  <div class="alert {{ w.level }}">
-    <strong>{{ w.title }}</strong>
-    <p>{{ w.detail }}</p>
-    <form method="post" action="/warnings/dismiss/{{ w.key }}" class="inline">
-      <button type="submit" class="linkish">Ignore</button>
-    </form>
-  </div>
-  {% endfor %}
+{% if mail_security_gaps %}
+<section class="alert warning">
+  <strong>Email security gaps</strong>
+  <p>
+    {{ mail_security_gaps|length }} managed domain(s) are missing MX/SPF/DKIM/DMARC.
+    Hosting users can enable records from their dashboard; you can also use
+    <a href="/settings">Global settings</a>.
+  </p>
+  <ul class="gap-list">
+    {% for g in mail_security_gaps %}
+    <li><code>{{ g.domain }}</code> — missing {{ g.missing|join(', ') }}</li>
+    {% endfor %}
+  </ul>
 </section>
 {% endif %}
 
-{% if not features.mail %}
+<section class="ops-section">
+  <h2>Network health</h2>
+  <div class="ops-grid">
+    <article class="ops-card">
+      <div class="ops-card-head">
+        <h3>PTR / RDNS</h3>
+        <span class="pill {% if network_health.ptr.ok %}ok{% else %}bad{% endif %}">
+          {% if network_health.ptr.ok %}OK{% else %}Issue{% endif %}
+        </span>
+      </div>
+      <p class="muted">{{ network_health.ptr.detail }}</p>
+      <dl class="ops-meta">
+        <div><dt>IP</dt><dd><code>{{ network_health.ptr.ip or '—' }}</code></dd></div>
+        <div><dt>Expected</dt><dd><code>{{ network_health.ptr.expected or '—' }}</code></dd></div>
+        <div><dt>Actual</dt><dd><code>{{ network_health.ptr.actual or '—' }}</code></dd></div>
+      </dl>
+    </article>
+    {% for ns in network_health.nameservers %}
+    <article class="ops-card">
+      <div class="ops-card-head">
+        <h3>{{ ns.label }}</h3>
+        <span class="pill {% if ns.ok %}ok{% else %}bad{% endif %}">
+          {% if ns.ok %}OK{% else %}Issue{% endif %}
+        </span>
+      </div>
+      <p class="muted">{{ ns.detail }}</p>
+      <dl class="ops-meta">
+        <div><dt>Host</dt><dd><code>{{ ns.hostname or '—' }}</code></dd></div>
+        <div><dt>Expected IP</dt><dd><code>{{ ns.expected_ip or '—' }}</code></dd></div>
+        <div><dt>Resolved</dt><dd><code>{{ ns.actual_ips|join(', ') if ns.actual_ips else '—' }}</code></dd></div>
+      </dl>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+{% if features.mail %}
+<section class="ops-section">
+  <h2>Mail server</h2>
+  <article class="ops-card ops-card-wide">
+    <div class="ops-card-head">
+      <div>
+        <h3>{{ mail_service.container }}</h3>
+        <p class="muted">Status: <strong>{{ mail_service.status }}</strong></p>
+      </div>
+      <span class="pill {% if mail_service.running %}ok{% else %}bad{% endif %}">
+        {% if mail_service.running %}Running{% else %}{{ mail_service.status|title }}{% endif %}
+      </span>
+    </div>
+    <div class="svc-actions">
+      <form method="post" action="/services/mail/start"><button type="submit">Start</button></form>
+      <form method="post" action="/services/mail/stop"><button type="submit" class="btn-muted">Stop</button></form>
+      <form method="post" action="/services/mail/kill" onsubmit="return confirm('Force-kill the mail container?');">
+        <button type="submit" class="btn-danger">Kill</button>
+      </form>
+    </div>
+  </article>
+</section>
+{% else %}
 <section class="alert info">
   <strong>Mail module off</strong>
-  <p>Mail features and settings are hidden because mail was not selected during install. Indicator kept on the dashboard for clarity.</p>
+  <p>Mail was not selected during install, so the mail service card is hidden.</p>
 </section>
 {% endif %}
+
+{% if features.web %}
+<section class="ops-section">
+  <h2>Sites</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Site</th>
+          <th>Owner</th>
+          <th>Status</th>
+          <th>CPU</th>
+          <th>Memory</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in site_runtime %}
+        <tr>
+          <td>
+            <strong>{{ s.domain }}</strong>
+            {% if s.stack %}<div class="muted tiny">{{ s.stack }}</div>{% endif %}
+          </td>
+          <td>{{ s.username }}</td>
+          <td>
+            <span class="pill {% if s.running %}ok{% elif s.status == 'missing' %}bad{% else %}warn{% endif %}">
+              {{ s.status }}
+            </span>
+          </td>
+          <td>{{ s.cpu }}</td>
+          <td>{{ s.mem }}{% if s.mem_perc and s.mem_perc != '—' %} <span class="muted">({{ s.mem_perc }})</span>{% endif %}</td>
+          <td>
+            <div class="svc-actions compact">
+              <form method="post" action="/services/sites/{{ s.id }}/start"><button type="submit">Start</button></form>
+              <form method="post" action="/services/sites/{{ s.id }}/stop"><button type="submit" class="btn-muted">Stop</button></form>
+              <form method="post" action="/services/sites/{{ s.id }}/kill" onsubmit="return confirm('Force-kill {{ s.domain }}?');">
+                <button type="submit" class="btn-danger">Kill</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="muted">No sites deployed yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
 <script src="/static/js/ssl-progress.js"></script>
 {% endblock %}

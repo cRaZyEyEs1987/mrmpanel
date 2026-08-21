@@ -18,7 +18,10 @@ from .services import (
     dns,
     domains,
     mail,
+    plans,
     plugins,
+    runtime,
+    server_health,
     sites,
     stacks,
     users,
@@ -40,6 +43,7 @@ app.add_middleware(
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["site_version"] = sites.site_display_version
+templates.env.globals["format_limit"] = plans.format_limit
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 assets = settings.assets_dir
@@ -204,18 +208,62 @@ async def dashboard(request: Request):
     features = load_features()
     hostname_ssl = certs.hostname_ssl_status(features.get("hostname") or "")
     connection = connection_status(request)
+    flash_ok = request.session.pop("dash_ok", None)
+    flash_error = request.session.pop("dash_error", None)
+    mail_svc = runtime.mail_service_status() if features.get("mail") else None
+    gaps = runtime.mail_security_gaps() if features.get("mail") else []
     return templates.TemplateResponse(
         "dashboard.html",
         ctx(
             request,
-            site_count=len(sites.list_sites()),
-            user_count=len(users.list_hosting_users()),
-            mail_status=mail.mail_status(),
-            available_stacks=stacks.list_stacks(),
             hostname_ssl=hostname_ssl,
             connection=connection,
+            network_health=server_health.network_health(),
+            mail_service=mail_svc,
+            site_runtime=runtime.site_runtime_rows() if features.get("web") else [],
+            mail_security_gaps=gaps,
+            flash_ok=flash_ok,
+            flash_error=flash_error,
         ),
     )
+
+
+@app.post("/services/mail/{action}")
+async def mail_service_control(request: Request, action: str):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    if not load_features().get("mail"):
+        request.session["dash_error"] = "Mail is not installed on this server"
+        return RedirectResponse("/", status_code=303)
+    try:
+        result = runtime.control_mail(action)
+        if result.get("ok"):
+            request.session["dash_ok"] = f"Mail container: {action} succeeded"
+        else:
+            request.session["dash_error"] = result.get("error") or f"Mail {action} failed"
+    except Exception as exc:
+        request.session["dash_error"] = str(exc)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/services/sites/{site_id}/{action}")
+async def site_service_control(request: Request, site_id: str, action: str):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        result = runtime.control_site(site_id, action)
+        domain = result.get("domain") or site_id
+        if result.get("ok"):
+            request.session["dash_ok"] = f"{domain}: {action} succeeded"
+        else:
+            request.session["dash_error"] = (
+                f"{domain}: {result.get('error') or action + ' failed'}"
+            )
+    except Exception as exc:
+        request.session["dash_error"] = str(exc)
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/api/ssl/activate")
@@ -253,8 +301,26 @@ async def users_page(request: Request):
         return gate
     return templates.TemplateResponse(
         "users.html",
-        ctx(request, hosting_users=users.list_hosting_users(), error=None, ok=None),
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=None,
+            ok=None,
+        ),
     )
+
+
+def _users_with_quotas() -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for u in users.list_hosting_users():
+        row = dict(u)
+        try:
+            row["quota"] = plans.user_quota_view(u["username"])
+        except Exception:
+            row["quota"] = None
+        out.append(row)
+    return out
 
 
 @app.post("/users")
@@ -263,19 +329,151 @@ async def users_create(
     username: str = Form(...),
     password: str = Form(...),
     display_name: str = Form(""),
+    plan_id: str = Form("unlimited"),
 ):
     gate = require_admin(request)
     if isinstance(gate, RedirectResponse):
         return gate
     error = ok = None
     try:
-        users.create_hosting_user(username.strip(), password, display_name.strip())
+        users.create_hosting_user(
+            username.strip(),
+            password,
+            display_name.strip(),
+            plan_id=plan_id.strip() or plans.DEFAULT_PLAN_ID,
+        )
         ok = f"User {username} created — they can sign in at /login"
     except Exception as e:
         error = str(e)
     return templates.TemplateResponse(
         "users.html",
-        ctx(request, hosting_users=users.list_hosting_users(), error=error, ok=ok),
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=error,
+            ok=ok,
+        ),
+    )
+
+
+@app.post("/users/{username}/plan")
+async def users_set_plan(request: Request, username: str, plan_id: str = Form(...)):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    error = ok = None
+    try:
+        plan = plans.set_user_plan(username, plan_id.strip())
+        ok = f"Assigned {username} to plan {plan['name']}"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "users.html",
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=error,
+            ok=ok,
+        ),
+    )
+
+
+@app.post("/plans")
+async def plans_create(
+    request: Request,
+    name: str = Form(...),
+    disk_gb: str = Form(""),
+    domains_limit: str = Form(""),
+    sites_limit: str = Form(""),
+    mailboxes_limit: str = Form(""),
+):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    error = ok = None
+    try:
+        plan = plans.create_plan(
+            name.strip(),
+            disk_gb=disk_gb.strip() or None,
+            domains=domains_limit.strip() or None,
+            sites=sites_limit.strip() or None,
+            mailboxes=mailboxes_limit.strip() or None,
+        )
+        ok = f"Plan {plan['name']} created"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "users.html",
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=error,
+            ok=ok,
+        ),
+    )
+
+
+@app.post("/plans/{plan_id}/delete")
+async def plans_delete(request: Request, plan_id: str):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    error = ok = None
+    try:
+        plans.delete_plan(plan_id)
+        ok = f"Plan {plan_id} deleted"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "users.html",
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=error,
+            ok=ok,
+        ),
+    )
+
+
+@app.post("/plans/{plan_id}/update")
+async def plans_update(
+    request: Request,
+    plan_id: str,
+    name: str = Form(...),
+    disk_gb: str = Form(""),
+    domains_limit: str = Form(""),
+    sites_limit: str = Form(""),
+    mailboxes_limit: str = Form(""),
+):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    error = ok = None
+    try:
+        plan = plans.update_plan(
+            plan_id,
+            name=name.strip(),
+            disk_gb=disk_gb.strip() or None,
+            domains=domains_limit.strip() or None,
+            sites=sites_limit.strip() or None,
+            mailboxes=mailboxes_limit.strip() or None,
+        )
+        ok = f"Plan {plan['name']} updated"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "users.html",
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=error,
+            ok=ok,
+        ),
     )
 
 
@@ -1053,17 +1251,69 @@ async def user_dashboard(request: Request):
         return gate
     username = gate["username"]
     my_sites = sites.list_sites_for_user(username)
-    domains = sites.user_domains(username)
-    warnings = mail.user_domain_warnings(username, domains)
+    domains_list = sites.user_domains(username)
+    warnings = mail.user_domain_warnings(username, domains_list)
+    quota = plans.user_quota_view(username)
+    security_audit = []
+    if load_features().get("mail") and domains_list:
+        security_audit = mail.mail_security_audit(domains_list)
+    flash_ok = request.session.pop("u_dash_ok", None)
+    flash_error = request.session.pop("u_dash_error", None)
+    flash_actions = request.session.pop("u_dash_actions", None)
     return templates.TemplateResponse(
         "user/dashboard.html",
         ctx(
             request,
             site_list=my_sites,
-            domains=domains,
+            domains=domains_list,
             domain_warnings=warnings,
+            quota=quota,
+            security_audit=security_audit,
+            flash_ok=flash_ok,
+            flash_error=flash_error,
+            flash_actions=flash_actions,
         ),
     )
+
+
+@app.post("/u/mail/security")
+async def user_mail_security_enable(
+    request: Request,
+    domain: str = Form(...),
+    enable_spf: str = Form("on"),
+    enable_dkim: str = Form("on"),
+    enable_dmarc: str = Form("on"),
+):
+    gate = require_hosting_user(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    username = gate["username"]
+    if not load_features().get("mail"):
+        request.session["u_dash_error"] = "Mail is not installed"
+        return RedirectResponse("/u/", status_code=303)
+    try:
+        name = domains.normalize_domain(domain)
+    except ValueError as exc:
+        request.session["u_dash_error"] = str(exc)
+        return RedirectResponse("/u/", status_code=303)
+    if name not in sites.user_domains(username):
+        request.session["u_dash_error"] = "That domain is not assigned to your account"
+        return RedirectResponse("/u/", status_code=303)
+    features = load_features()
+    dmarc_policy = str(features.get("mail_dmarc_policy") or "quarantine")
+    try:
+        actions = mail.configure_mail_security(
+            [name],
+            spf=enable_spf == "on",
+            dkim=enable_dkim == "on",
+            dmarc=enable_dmarc == "on",
+            dmarc_policy=dmarc_policy,
+        )
+        request.session["u_dash_ok"] = f"Mail security updated for {name}"
+        request.session["u_dash_actions"] = actions
+    except Exception as exc:
+        request.session["u_dash_error"] = str(exc)
+    return RedirectResponse("/u/", status_code=303)
 
 
 @app.post("/u/warnings/dismiss/{key:path}")

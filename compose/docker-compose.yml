@@ -64,7 +64,7 @@ services:
       - "5432:5432"
 
   mail:
-    image: ghcr.io/docker-mailserver/docker-mailserver:14.0
+    image: ghcr.io/docker-mailserver/docker-mailserver:15.1.0
     container_name: mrmpanel-mail
     profiles: ["mail"]
     hostname: ${MRMPANEL_HOSTNAME:-mail}

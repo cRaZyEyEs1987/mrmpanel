@@ -108,8 +108,14 @@ def list_hosting_users() -> list[dict]:
     return users
 
 
-def create_hosting_user(username: str, password: str, display_name: str = "") -> dict:
+def create_hosting_user(
+    username: str,
+    password: str,
+    display_name: str = "",
+    plan_id: str | None = None,
+) -> dict:
     from ..auth import hash_password
+    from . import plans as plans_svc
 
     if not re.fullmatch(r"[a-z][a-z0-9_]{2,31}", username):
         raise ValueError("Username must be 3–32 chars: lowercase, digit, underscore")
@@ -118,6 +124,11 @@ def create_hosting_user(username: str, password: str, display_name: str = "") ->
         raise ValueError(f"OS user {username} already exists")
     except KeyError:
         pass
+
+    plans_svc.ensure_plans()
+    chosen = (plan_id or plans_svc.DEFAULT_PLAN_ID).strip().lower()
+    if not plans_svc.get_plan(chosen):
+        raise ValueError(f"Unknown plan: {chosen}")
 
     home = get_settings().home_root / username
     hashed = crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))
@@ -151,6 +162,7 @@ def create_hosting_user(username: str, password: str, display_name: str = "") ->
         "home": str(home),
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "mail_enabled": bool(load_features().get("mail")),
+        "plan_id": chosen,
         "panel_password_hash": hash_password(password),
     }
     save_hosting_user(meta)

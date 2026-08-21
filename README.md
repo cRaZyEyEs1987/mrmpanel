@@ -11,7 +11,7 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.26
+**Current release:** 0.1.28
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel
 **Known-good baseline tag:** [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
 

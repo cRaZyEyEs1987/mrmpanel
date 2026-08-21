@@ -3,19 +3,118 @@
 {% block content %}
 <header class="page-head">
   <h1>Welcome, {{ user.display_name or user.username }}</h1>
-  <p class="muted">Manage your domains and account. Server-wide admin tools are not available here.</p>
+  <p class="muted">Your domains, quotas, and mail security for this account.</p>
 </header>
+
+{% if flash_ok %}<p class="alert ok">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<pre class="alert error service-error">{{ flash_error }}</pre>{% endif %}
+{% if flash_actions %}
+<ul class="gap-list">
+  {% for action in flash_actions %}
+  <li>
+    <strong>{{ action.domain }} · {{ action.kind }}</strong> — {{ action.result }}
+    {% if action.record %}<br><code>{{ action.record }}</code>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if quota %}
+<section class="ops-section">
+  <h2>Plan usage — {{ quota.plan.name }}</h2>
+  <div class="quota-grid">
+    {% set items = [
+      ('Disk', quota.usage.disk_gb, quota.limits.disk_gb, 'GB'),
+      ('Domains', quota.usage.domains, quota.limits.domains, ''),
+      ('Sites', quota.usage.sites, quota.limits.sites, ''),
+      ('Mailboxes', quota.usage.mailboxes, quota.limits.mailboxes, '')
+    ] %}
+    {% for label, used, limit, unit in items %}
+    <article class="ops-card">
+      <div class="ops-card-head">
+        <h3>{{ label }}</h3>
+        <span class="muted tiny">
+          {{ used }}{% if unit %} {{ unit }}{% endif %}
+          /
+          {% if limit is none %}Infinite{% else %}{{ limit }}{% if unit %} {{ unit }}{% endif %}{% endif %}
+        </span>
+      </div>
+      {% if limit is none %}
+      <div class="usage-bar infinite"><span style="width:12%"></span></div>
+      {% else %}
+      {% set raw = (used / limit * 100) if limit else 0 %}
+      {% set pct = 100 if raw > 100 else (0 if raw < 0 else raw|int) %}
+      <div class="usage-bar"><span style="width:{{ pct }}%"></span></div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 <section class="module-grid">
   <article class="mod on">
     <h2>Sites</h2>
-    <p>{{ site_list|length }} domain(s)</p>
+    <p>{{ site_list|length }} site(s)</p>
   </article>
   <article class="mod on">
     <h2>Domains</h2>
     <p>{% if domains %}{{ domains|join(', ') }}{% else %}None yet{% endif %}</p>
   </article>
 </section>
+
+{% if features.mail %}
+<section class="ops-section">
+  <h2>Email security by domain</h2>
+  <p class="muted">Scan results for your managed domains. Enable missing records when this server hosts DNS, or copy the suggested records for external DNS.</p>
+  {% if security_audit %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Domain</th>
+          <th>MX</th>
+          <th>SPF</th>
+          <th>DKIM</th>
+          <th>DMARC</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in security_audit %}
+        <tr>
+          <td><code>{{ row.domain }}</code></td>
+          <td><span class="pill {% if row.mx.valid %}ok{% else %}bad{% endif %}">{% if row.mx.valid %}OK{% else %}Missing{% endif %}</span></td>
+          <td><span class="pill {% if row.spf.valid %}ok{% else %}bad{% endif %}">{% if row.spf.valid %}OK{% else %}Missing{% endif %}</span></td>
+          <td><span class="pill {% if row.dkim.valid %}ok{% else %}bad{% endif %}">{% if row.dkim.valid %}OK{% else %}Missing{% endif %}</span></td>
+          <td>
+            <span class="pill {% if row.dmarc.valid %}ok{% else %}bad{% endif %}">
+              {% if row.dmarc.enforced %}Enforced{% elif row.dmarc.valid %}{{ row.dmarc.policy }}{% else %}Missing{% endif %}
+            </span>
+          </td>
+          <td>
+            {% if not (row.mx.valid and row.spf.valid and row.dkim.valid and row.dmarc.valid) %}
+            <form method="post" action="/u/mail/security" class="inline">
+              <input type="hidden" name="domain" value="{{ row.domain }}">
+              <input type="hidden" name="enable_spf" value="on">
+              <input type="hidden" name="enable_dkim" value="on">
+              <input type="hidden" name="enable_dmarc" value="on">
+              <button type="submit">Enable missing</button>
+            </form>
+            {% else %}
+            <span class="muted tiny">All set</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No managed domains yet — add one under Domains or Sites first.</p>
+  {% endif %}
+</section>
+{% endif %}
 
 {% if domain_warnings.warnings %}
 <section class="warn-list">
@@ -34,10 +133,6 @@
 <section class="alert info">
   <strong>No domains yet</strong>
   <p>Ask your administrator to deploy a site for you, or add one under <a href="/u/sites">My sites</a>.</p>
-</section>
-{% else %}
-<section class="alert ok">
-  <p>No pending notices for your domains.</p>
 </section>
 {% endif %}
 {% endblock %}

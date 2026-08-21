@@ -156,11 +156,13 @@ def add_domain(
     allow_delegation: bool = False,
 ) -> dict[str, Any]:
     from .users import get_hosting_user
+    from . import plans as plans_svc
 
     name = normalize_domain(domain)
     sync_from_sites()
     if not get_hosting_user(username):
         raise ValueError(f"Hosting user not found: {username}")
+    plans_svc.assert_can_add_domain(username)
     if get_domain(name):
         raise ValueError(
             f"{name} is already a managed domain. Delete its existing assignment first."
