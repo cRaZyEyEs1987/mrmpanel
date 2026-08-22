@@ -171,6 +171,39 @@ def create_hosting_user(
 
 
 def delete_hosting_user(username: str, remove_home: bool = False) -> None:
+    """Delete a hosting account after sites/domains/mailboxes are cleared."""
+    from . import domains as domains_svc
+    from . import mail as mail_svc
+    from . import sites as sites_svc
+
+    username = (username or "").strip()
+    if not username or not get_hosting_user(username):
+        raise ValueError("User not found")
+
+    site_list = sites_svc.list_sites_for_user(username)
+    domain_list = domains_svc.list_domains_for_user(username)
+    domain_names = [d["domain"] for d in domain_list if d.get("domain")]
+    mailbox_list: list[str] = []
+    if domain_names and load_features().get("mail"):
+        try:
+            mailbox_list = mail_svc.list_mailboxes_for_domains(domain_names)
+        except Exception:
+            mailbox_list = []
+
+    blockers: list[str] = []
+    if site_list:
+        blockers.append(f"{len(site_list)} site(s)")
+    if domain_list:
+        blockers.append(f"{len(domain_list)} domain(s)")
+    if mailbox_list:
+        blockers.append(f"{len(mailbox_list)} mailbox(es)")
+    if blockers:
+        raise ValueError(
+            f"Cannot delete {username} while they still have "
+            + ", ".join(blockers)
+            + ". Delete those first."
+        )
+
     path = _user_meta_path(username)
     if path.exists():
         path.unlink()

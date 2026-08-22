@@ -11,10 +11,11 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.28  
+**Current release:** 0.1.29  
 **Docs / install guides (human-readable):** https://hostingandstuff.online  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
 **Known-good baseline tag:** [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
+**Safety pin (pre-0.1.29 work):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
 
 Compare panels, VPS picks, and mail caveats on the public site:
 
@@ -74,6 +75,10 @@ Features are stored in `/var/lib/mrmpanel/features.json`.
 ## What you get
 
 - **Admin panel** on `:8080`, with HTTPS on the server hostname via Traefik
+- **Server overview** — PTR/RDNS and NS health, site + mail Start/Stop/Kill with
+  usage snapshots, and a warning when domains lack MX/SPF/DKIM/DMARC
+- **Hosting plans** — disk / domains / sites / mailboxes quotas (Infinite =
+  unlimited); admin-only create/edit/assign
 - **Hosting users** with jailed SSH/SFTP and `/home/<user>/…` layouts
 - **Domains** owned by accounts (including separately owned subdomains)
 - **Sites** — WordPress (auto-install), Laravel (Composer create-project),
@@ -81,6 +86,7 @@ Features are stored in `/var/lib/mrmpanel/features.json`.
 - **Databases** — MariaDB / PostgreSQL, site-linked or standalone
 - **Mail** — mailboxes under `/home/<user>/<email>/maildir`
 - **Webmail** — one shared Roundcube at `https://<domain>/webmail/` (passwordless **Open in webmail** from the Mail menu)
+- **Email security (users)** — per-domain SPF/DKIM/DMARC status and Enable missing
 - **DNS** — PowerDNS zones, MX/SPF/DKIM/DMARC helpers, Domains page record table
 - **SSL** — Let's Encrypt via Traefik; dashboard warnings + activate button
 - **Operator ACL** — the sudo account that installed the panel can manage all
@@ -108,6 +114,7 @@ registrar.
 ## Docs
 
 - [Accounts, domains, sites, databases, and mail](docs/accounts-and-domains.md)
+- [Plans and admin dashboard](docs/plans-and-dashboard.md)
 - [First site](docs/first-site.md)
 - [DNS & PTR](docs/dns.md)
 - [SSL](docs/ssl.md)

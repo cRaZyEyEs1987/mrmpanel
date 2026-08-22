@@ -380,6 +380,39 @@ async def users_set_plan(request: Request, username: str, plan_id: str = Form(..
     )
 
 
+@app.post("/users/{username}/delete")
+async def users_delete(
+    request: Request,
+    username: str,
+    remove_home: str = Form(""),
+):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    error = ok = None
+    try:
+        users.delete_hosting_user(
+            username.strip(),
+            remove_home=remove_home in {"1", "true", "on", "yes"},
+        )
+        # Clear admin scope if we just deleted the selected user
+        if request.session.get("admin_selected_user") == username.strip():
+            request.session.pop("admin_selected_user", None)
+        ok = f"User {username} deleted"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "users.html",
+        ctx(
+            request,
+            hosting_users=_users_with_quotas(),
+            plan_list=plans.list_plans(),
+            error=error,
+            ok=ok,
+        ),
+    )
+
+
 @app.post("/plans")
 async def plans_create(
     request: Request,
@@ -923,6 +956,32 @@ async def mail_add_mailbox(
         ok = f"Mailbox {email} added"
         if path:
             ok += f" → {path}"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "mail.html",
+        _admin_mail_ctx(request, domain, error=error, ok=ok),
+    )
+
+
+@app.post("/mail/delete")
+async def mail_delete_mailbox(request: Request, email: str = Form(...)):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    error = ok = None
+    domain = ""
+    try:
+        email = email.strip().lower()
+        domain = email.split("@", 1)[1] if "@" in email else ""
+        selected = selected_admin_user(request)
+        allowed = domains.domain_names_for_user(selected) if selected else [
+            item["domain"] for item in domains.list_domains()
+        ]
+        if domain not in allowed:
+            raise ValueError("Mailbox domain is outside the selected account scope")
+        mail.delete_mailbox(email)
+        ok = f"Mailbox {email} deleted"
     except Exception as e:
         error = str(e)
     return templates.TemplateResponse(
@@ -1712,6 +1771,39 @@ async def user_mail_mailbox(
             guidance=mail.dns_guidance(selected) if selected else None,
             mailboxes=mail.list_mailboxes_for_domains(domains),
             domain_warnings=mail.user_domain_warnings(username, domains),
+            error=error,
+            ok=ok,
+            dkim_result=None,
+        ),
+    )
+
+
+@app.post("/u/mail/delete")
+async def user_mail_delete(request: Request, email: str = Form(...)):
+    gate = require_hosting_user(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    username = gate["username"]
+    domains_list = sites.user_domains(username)
+    error = ok = None
+    selected = domains_list[0] if domains_list else ""
+    try:
+        email = email.strip().lower()
+        if "@" in email:
+            selected = email.split("@", 1)[1]
+        mail.delete_mailbox(email, username=username)
+        ok = f"Mailbox {email} deleted"
+    except Exception as e:
+        error = str(e)
+    return templates.TemplateResponse(
+        "user/mail.html",
+        ctx(
+            request,
+            domains=domains_list,
+            selected_domain=selected,
+            guidance=mail.dns_guidance(selected) if selected else None,
+            mailboxes=mail.list_mailboxes_for_domains(domains_list),
+            domain_warnings=mail.user_domain_warnings(username, domains_list),
             error=error,
             ok=ok,
             dkim_result=None,

@@ -93,10 +93,16 @@
     <tr>
       <td>{{ m }}</td>
       <td>
-        <form method="post" action="/u/mail/webmail-sso" class="inline" target="_blank">
-          <input type="hidden" name="email" value="{{ m }}">
-          <button type="submit">Open in webmail</button>
-        </form>
+        <div class="svc-actions compact">
+          <form method="post" action="/u/mail/webmail-sso" class="inline" target="_blank">
+            <input type="hidden" name="email" value="{{ m }}">
+            <button type="submit">Open in webmail</button>
+          </form>
+          <form method="post" action="/u/mail/delete" class="inline" onsubmit="return confirm('Delete mailbox {{ m }} and its mail data?');">
+            <input type="hidden" name="email" value="{{ m }}">
+            <button type="submit" class="btn-danger">Delete</button>
+          </form>
+        </div>
       </td>
     </tr>
   {% else %}

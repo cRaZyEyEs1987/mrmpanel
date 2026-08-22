@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -410,6 +411,63 @@ def add_mailbox(email: str, password: str, username: str | None = None) -> Path 
     if owner and maildir is not None:
         prepare_user_maildir(owner, email)
     return maildir
+
+
+def delete_mailbox(email: str, *, username: str | None = None) -> None:
+    """Remove a mailbox from docker-mailserver and clean local bookkeeping."""
+    if not load_features().get("mail"):
+        raise RuntimeError("Mail not installed")
+    email = email.strip().lower()
+    if "@" not in email:
+        raise ValueError("Invalid mailbox address")
+
+    owner = resolve_mailbox_owner(email, username)
+    if username and owner and owner != username:
+        raise ValueError("Mailbox is not owned by this account")
+    if username and not owner:
+        # Require ownership when called from a hosting-user route
+        domain = email.split("@", 1)[1]
+        from .domains import get_domain
+
+        meta = get_domain(domain)
+        if not meta or meta.get("username") != username:
+            raise ValueError("Mailbox is not owned by this account")
+
+    c = _mail_container()
+    proc = subprocess.run(
+        ["docker", "exec", c, "setup", "email", "del", "-y", email],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "unknown error").strip()
+        raise RuntimeError(f"Failed to delete mailbox: {detail}")
+
+    meta = get_settings().data_dir / "mail" / "mailbox-homes.json"
+    if meta.exists():
+        try:
+            data = json.loads(meta.read_text())
+        except json.JSONDecodeError:
+            data = {}
+        if email in data:
+            data.pop(email, None)
+            meta.write_text(json.dumps(data, indent=2))
+
+    # Best-effort clean of hosting-user maildir tree
+    if owner:
+        home_mail = mailbox_maildir(owner, email)
+        parent = home_mail.parent  # /home/<user>/<email>
+        try:
+            if home_mail.is_symlink() or home_mail.exists():
+                if home_mail.is_symlink():
+                    home_mail.unlink()
+                elif home_mail.is_dir():
+                    shutil.rmtree(home_mail, ignore_errors=True)
+            if parent.exists() and parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+        except OSError:
+            pass
 
 
 def mailbox_storage_path(email: str) -> str | None:

@@ -2,7 +2,7 @@
 # mrmpanel installer — fresh servers only (Alma/Rocky/RHEL 9–10, Ubuntu 24.04)
 set -euo pipefail
 
-MRMPANEL_VERSION="0.1.28"
+MRMPANEL_VERSION="0.1.29"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Full installer lives in scripts/ — package root is one level up
 if [[ -d "${SCRIPT_DIR}/../panel" && -d "${SCRIPT_DIR}/../compose" ]]; then
@@ -1180,6 +1180,19 @@ start_stack() {
   install_jail_helpers
   install_systemd_unit
   sync_operator_home_access
+  # Seed hosting plans and backfill missing plan_id on upgrades
+  (
+    cd "${INSTALL_ROOT}/panel"
+    export PYTHONPATH="${INSTALL_ROOT}/panel${PYTHONPATH:+:$PYTHONPATH}"
+    export MRMPANEL_DATA="${DATA_ROOT}"
+    export MRMPANEL_FEATURES="${FEATURES_FILE}"
+    "${INSTALL_ROOT}/panel/.venv/bin/python" - <<'PY' || true
+from app.services import plans
+plans.ensure_plans()
+n = plans.backfill_user_plans()
+print(f"[mrmpanel] plans ready (backfilled {n} user(s))")
+PY
+  ) || warn "Could not seed hosting plans"
 
   prepare_mail_tls
   local args=()

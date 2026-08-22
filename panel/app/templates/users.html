@@ -42,6 +42,7 @@
           <th>Usage</th>
           <th>Created</th>
           <th>Change plan</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -74,9 +75,18 @@
               <button type="submit" class="btn-muted">Save</button>
             </form>
           </td>
+          <td>
+            <form method="post" action="/users/{{ u.username }}/delete" class="inline"
+              onsubmit="return confirm('Delete hosting user {{ u.username }}? Sites, domains, and mailboxes must already be removed.');">
+              <label class="tiny muted" style="display:flex;gap:0.35rem;align-items:center;margin-bottom:0.35rem">
+                <input type="checkbox" name="remove_home" value="on"> Remove home
+              </label>
+              <button type="submit" class="btn-danger">Delete</button>
+            </form>
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="muted">No users yet</td></tr>
+        <tr><td colspan="6" class="muted">No users yet</td></tr>
       {% endfor %}
       </tbody>
     </table>

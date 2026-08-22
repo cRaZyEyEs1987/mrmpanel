@@ -109,9 +109,10 @@ def ensure_data_dirs() -> None:
             (s.data_dir / sub).mkdir(parents=True, exist_ok=True)
         except OSError:
             pass
-    try:
-        from .services import plans as plans_svc
+        try:
+            from .services import plans as plans_svc
 
-        plans_svc.ensure_plans()
-    except Exception:
-        pass
+            plans_svc.ensure_plans()
+            plans_svc.backfill_user_plans()
+        except Exception:
+            pass

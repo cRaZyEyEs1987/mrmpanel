@@ -355,3 +355,24 @@ def set_user_plan(username: str, plan_id: str) -> dict[str, Any]:
     meta["plan_id"] = plan["id"]
     users.save_hosting_user(meta)
     return plan
+
+
+def backfill_user_plans() -> int:
+    """Assign Unlimited to any hosting user missing plan_id. Returns count updated."""
+    from . import users
+
+    ensure_plans()
+    updated = 0
+    for u in users.list_hosting_users():
+        username = u.get("username")
+        if not username:
+            continue
+        meta = users.get_hosting_user(username)
+        if not meta:
+            continue
+        if meta.get("plan_id"):
+            continue
+        meta["plan_id"] = DEFAULT_PLAN_ID
+        users.save_hosting_user(meta)
+        updated += 1
+    return updated
