@@ -471,11 +471,19 @@ def record_lock_info(
     name = (name or "").strip().rstrip(".").lower()
     rtype = (rtype or "").strip().upper()
     value_l = (value or "").strip().strip('"').lower()
+    features = load_features()
+    ns1 = str(features.get("ns1_hostname") or "").strip().rstrip(".").lower()
+    ns2 = str(features.get("ns2_hostname") or "").strip().rstrip(".").lower()
 
     if rtype in {"SOA", "NS"}:
         return {
             "locked": True,
             "reason": "Managed by the panel (zone infrastructure)",
+        }
+    if rtype in {"A", "AAAA"} and name in {ns1, ns2} and name:
+        return {
+            "locked": True,
+            "reason": "Nameserver glue — change via Settings → Nameservers",
         }
     if rtype == "MX":
         return {
