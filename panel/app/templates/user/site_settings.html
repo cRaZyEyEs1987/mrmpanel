@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-head">
   <h1>{{ site.domain }}</h1>
-  <p class="muted">Stack: {{ site.stack }}{% if current_version %} · {{ current_version }}{% endif %} · path: <code>{{ site.path }}</code></p>
+  <p class="muted">Stack: {{ site.stack }}{% if current_version %} · PHP {{ current_version }}{% endif %}{% if app_version %} · {{ app_version_label }} {{ app_version }}{% endif %} · path: <code>{{ site.path }}</code></p>
 </header>
 {% if error %}<p class="alert error">{{ error }}</p>{% endif %}
 {% if ok %}<p class="alert ok">{{ ok }}</p>{% endif %}
@@ -18,12 +18,20 @@
 # {{ mail_guidance.dkim_note }}{% endif %}</pre>
 </section>
 
+{% if has_app_versions and app_version %}
+<section class="card-form">
+  <h2>{{ app_version_label }}</h2>
+  <p class="muted">Installed at deploy time. Changing WordPress core from the panel is not supported yet.</p>
+  <p><strong>{{ app_version }}</strong></p>
+</section>
+{% endif %}
+
 {% if stack_versions %}
 <section class="card-form">
-  <h2>Runtime version</h2>
+  <h2>{% if has_app_versions %}PHP version{% else %}Runtime version{% endif %}</h2>
   <p class="muted">Switch the container image only. Your site files and database credentials are kept. The app must support the new runtime.</p>
   <form method="post" action="/u/sites/{{ site.id }}/version" class="grid-form" onsubmit="return confirm('Recreate the container on the selected runtime? Files stay on disk.');">
-    <label>Version
+    <label>{% if has_app_versions %}PHP version{% else %}Version{% endif %}
       <select name="version" required>
         {% for v in stack_versions %}
         <option value="{{ v }}" {% if current_version == v %}selected{% endif %}>{{ v }}</option>

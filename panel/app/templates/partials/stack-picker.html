@@ -9,6 +9,9 @@
         data-stack-choice
         data-versions="{{ (s.versions or [])|join(',') }}"
         data-default="{{ s.default_version or '' }}"
+        data-app-versions='{{ (s.app_versions or [])|tojson }}'
+        data-default-app="{{ s.default_app_version or '' }}"
+        data-app-label="{{ s.app_version_label or 'App version' }}"
         {% if loop.first %}checked{% endif %}>
       <span class="stack-card-body">
         <span class="stack-card-head">
@@ -18,6 +21,7 @@
         <span class="stack-description">{{ s.description or 'Application runtime' }}</span>
         <span class="stack-meta">
           {% if s.default_version %}Default {{ s.default_version }}{% else %}Managed image{% endif %}
+          {% if s.default_app_version %} · App {{ s.default_app_version }}{% endif %}
           ·
           {% if s.requires %}Needs {{ s.requires|join(' + ') }}{% else %}No database required{% endif %}
         </span>

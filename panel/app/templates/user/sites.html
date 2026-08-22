@@ -45,8 +45,11 @@
       <legend><span>3</span> Runtime and data</legend>
       <p class="step-help">The recommended defaults work for most deployments.</p>
       <div class="deploy-fields">
-        <label data-version-field hidden>Runtime version
+        <label data-version-field hidden><span data-version-label>Runtime version</span>
           <select name="version" data-version-select></select>
+        </label>
+        <label data-app-version-field hidden><span data-app-version-label>App version</span>
+          <select name="app_version" data-app-version-select></select>
         </label>
         <label>Database
           <select name="create_db">
@@ -92,7 +95,7 @@
   {% for s in site_list %}
     <tr>
       <td><a href="http://{{ s.domain }}" target="_blank" rel="noopener">{{ s.domain }}</a></td>
-      <td>{{ s.stack }}{% if site_version(s) %} · {{ site_version(s) }}{% endif %}</td>
+      <td>{{ s.stack }}{% if site_version(s) %} · PHP {{ site_version(s) }}{% endif %}{% if s.app_version %} · WP {{ s.app_version }}{% endif %}</td>
       <td>{% if s.db %}{{ s.db.engine }}{% else %}—{% endif %}</td>
       <td class="row-actions">
         <a href="/u/sites/{{ s.id }}/settings">Settings</a>

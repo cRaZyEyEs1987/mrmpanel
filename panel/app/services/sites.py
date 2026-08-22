@@ -14,11 +14,14 @@ from docker.types import Mount
 
 from ..config import get_settings, load_features
 from .stacks import (
+    default_app_version,
     default_version,
     get_stack,
     resolve_image,
+    stack_app_versions,
     stack_available,
     stack_versions,
+    validate_app_version,
 )
 from .users import ensure_domain_dir, grant_operator_access, user_home
 
@@ -245,12 +248,13 @@ def _run_container(
     db_info: dict[str, str] | None,
     site_id: str,
     progress: Any = None,
+    app_version: str | None = None,
 ) -> Any:
     def p(msg: str, pct: int | None = None) -> None:
         if progress:
             progress(msg, pct)
 
-    image = resolve_image(stack, version)
+    image = resolve_image(stack, version, app_version=app_version)
     cname = _container_name(username, domain)
     port = int(stack.get("container_port", 80))
     mounts = _build_mounts(username, domain_dir, stack)
@@ -376,6 +380,7 @@ def deploy_site(
     version: str | None = None,
     progress: Any = None,
     app_opts: dict[str, str] | None = None,
+    app_version: str | None = None,
 ) -> dict[str, Any]:
     def p(msg: str, pct: int | None = None) -> None:
         if progress:
@@ -409,9 +414,11 @@ def deploy_site(
 
     versions = stack_versions(stack)
     chosen: str | None = None
+    chosen_app: str | None = None
     if versions:
         chosen = version or default_version(stack)
-        resolve_image(stack, chosen)
+        chosen_app = validate_app_version(stack, chosen, app_version)
+        resolve_image(stack, chosen, app_version=chosen_app)
 
     p(f"Preparing files for {domain}", 12)
     domain_dir = ensure_domain_dir(username, domain)
@@ -425,7 +432,11 @@ def deploy_site(
                 13,
             )
             _clear_dir_contents(domain_dir)
-        resolved = resolve_image(stack, chosen) if versions else str(stack.get("image") or "")
+        resolved = (
+            resolve_image(stack, chosen, app_version=chosen_app)
+            if versions
+            else str(stack.get("image") or "")
+        )
         p(f"{stack.get('name') or stack_id} stack image: {resolved}", 14)
 
     if stack.get("auto_install") == "laravel":
@@ -452,6 +463,7 @@ def deploy_site(
         db_info=db_info,
         site_id=site_id,
         progress=progress,
+        app_version=chosen_app,
     )
 
     meta = {
@@ -468,6 +480,8 @@ def deploy_site(
         "path": str(domain_dir),
         "url": f"http://{domain}",
     }
+    if chosen_app:
+        meta["app_version"] = chosen_app
 
     if stack.get("auto_install") == "wordpress":
         wp_opts = app_opts or {}
@@ -479,6 +493,7 @@ def deploy_site(
             generated = True
         wp_title = (wp_opts.get("wp_title") or domain).strip() or domain
         wp_email = (wp_opts.get("wp_admin_email") or f"admin@{domain}").strip()
+        wp_core = chosen_app or default_app_version(stack) or "7.0"
         _wordpress_auto_install(
             domain=domain,
             domain_dir=domain_dir,
@@ -488,7 +503,8 @@ def deploy_site(
             admin_email=wp_email,
             title=wp_title,
             progress=progress,
-            wp_core_version=str(stack.get("wp_core_version") or "7.0"),
+            wp_core_version=wp_core,
+            php_version=chosen or default_version(stack) or "8.3",
         )
         meta["wp_admin_user"] = wp_user
         meta["wp_admin_email"] = wp_email
@@ -777,6 +793,25 @@ def _laravel_finalize(
     p(f"Laravel installed for http://{domain}", 96)
 
 
+def _wordpress_cli_image(php_version: str) -> str:
+    """Prefer wordpress:cli-php{N}; fall back to cli-php8.3 if that tag is missing."""
+    php = (php_version or "8.3").strip() or "8.3"
+    preferred = f"wordpress:cli-php{php}"
+    fallback = "wordpress:cli-php8.3"
+    client = _client()
+    for image in (preferred, fallback) if preferred != fallback else (preferred,):
+        try:
+            client.images.get(image)
+            return image
+        except docker.errors.ImageNotFound:
+            try:
+                client.images.pull(image)
+                return image
+            except Exception:
+                continue
+    return fallback
+
+
 def _wordpress_auto_install(
     *,
     domain: str,
@@ -788,6 +823,7 @@ def _wordpress_auto_install(
     title: str,
     progress: Any = None,
     wp_core_version: str = "7.0",
+    php_version: str = "8.3",
 ) -> None:
     """Finish WordPress using official wordpress:cli against the site bind-mount."""
     def p(msg: str, pct: int | None = None) -> None:
@@ -814,13 +850,9 @@ def _wordpress_auto_install(
     if wp_ver:
         p(f"WordPress core unpacked from image: {wp_ver}", 93)
 
-    client = _client()
-    cli_image = "wordpress:cli-php8.3"
-    try:
-        client.images.get(cli_image)
-    except docker.errors.ImageNotFound:
-        p(f"Pulling {cli_image} for auto-install…", 93)
-        client.images.pull(cli_image)
+    p(f"Preparing WP-CLI (PHP {php_version})…", 93)
+    cli_image = _wordpress_cli_image(php_version)
+    p(f"Using {cli_image}", 93)
 
     net = get_settings().docker_network
     url = f"http://{domain}"
@@ -978,7 +1010,22 @@ def change_site_version(site_id: str, version: str) -> dict[str, Any]:
         raise ValueError("This stack has no selectable runtime version")
 
     chosen = str(version)
-    resolve_image(stack, chosen)
+    existing_app = site.get("app_version")
+    if stack_app_versions(stack):
+        if not existing_app:
+            disk = _read_wp_version(Path(site.get("path") or ""))
+            if disk:
+                # Prefer major.minor that matches a known app id (e.g. 6.8.3 → 6.8)
+                parts = disk.split(".")
+                if len(parts) >= 2:
+                    candidate = f"{parts[0]}.{parts[1]}"
+                    ids = {a["id"] for a in stack_app_versions(stack)}
+                    if candidate in ids:
+                        existing_app = candidate
+        existing_app = validate_app_version(
+            stack, chosen, str(existing_app) if existing_app else None
+        )
+    resolve_image(stack, chosen, app_version=existing_app)
 
     domain_dir = Path(site["path"])
     if not domain_dir.is_dir():
@@ -993,9 +1040,12 @@ def change_site_version(site_id: str, version: str) -> dict[str, Any]:
         domain_dir=domain_dir,
         db_info=site.get("db"),
         site_id=site_id,
+        app_version=existing_app,
     )
 
     site["version"] = chosen
+    if existing_app:
+        site["app_version"] = existing_app
     site["container"] = cname
     site["container_id"] = container.id
     site["path"] = str(domain_dir)
@@ -1038,6 +1088,7 @@ def refresh_site_tls(site_id: str) -> dict[str, Any]:
         domain_dir=domain_dir,
         db_info=site.get("db"),
         site_id=site_id,
+        app_version=site.get("app_version"),
     )
     site["container"] = cname
     site["container_id"] = container.id

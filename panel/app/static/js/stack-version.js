@@ -12,9 +12,29 @@
     return null;
   }
 
+  function parseAppVersions(opt) {
+    var raw = opt.getAttribute("data-app-versions") || "[]";
+    try {
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map(function (entry) {
+          if (!entry || !entry.id) return null;
+          return {
+            id: String(entry.id),
+            php: (entry.php || []).map(String),
+          };
+        })
+        .filter(Boolean);
+    } catch (e) {
+      return [];
+    }
+  }
+
   function syncVersionField(form) {
     var versionField = form.querySelector("[data-version-field]");
     var versionSelect = form.querySelector("[data-version-select]");
+    var versionLabel = form.querySelector("[data-version-label]");
     if (!versionField || !versionSelect) return;
 
     var opt = selectedStack(form);
@@ -26,6 +46,7 @@
       })
       .filter(Boolean);
     var def = opt.getAttribute("data-default") || "";
+    var apps = parseAppVersions(opt);
 
     versionSelect.innerHTML = "";
     if (!versions.length) {
@@ -45,6 +66,59 @@
     if (!def && versions.length) versionSelect.selectedIndex = versions.length - 1;
     versionField.hidden = false;
     versionSelect.setAttribute("required", "required");
+    if (versionLabel) {
+      versionLabel.textContent = apps.length ? "PHP version" : "Runtime version";
+    }
+  }
+
+  function syncAppVersionField(form) {
+    var appField = form.querySelector("[data-app-version-field]");
+    var appSelect = form.querySelector("[data-app-version-select]");
+    var appLabel = form.querySelector("[data-app-version-label]");
+    if (!appField || !appSelect) return;
+
+    var opt = selectedStack(form);
+    if (!opt) return;
+    var apps = parseAppVersions(opt);
+    var defApp = opt.getAttribute("data-default-app") || "";
+    var label = opt.getAttribute("data-app-label") || "App version";
+    var versionSelect = form.querySelector("[data-version-select]");
+    var php = versionSelect ? versionSelect.value : "";
+
+    appSelect.innerHTML = "";
+    if (!apps.length) {
+      appField.hidden = true;
+      appSelect.removeAttribute("required");
+      appSelect.value = "";
+      return;
+    }
+
+    var compatible = apps.filter(function (a) {
+      return !php || a.php.indexOf(php) !== -1;
+    });
+    if (!compatible.length) {
+      appField.hidden = true;
+      appSelect.removeAttribute("required");
+      appSelect.value = "";
+      return;
+    }
+
+    compatible.forEach(function (a) {
+      var o = document.createElement("option");
+      o.value = a.id;
+      o.textContent = a.id;
+      if (a.id === defApp) o.selected = true;
+      appSelect.appendChild(o);
+    });
+    if (!appSelect.value && compatible.length) {
+      var prefer = compatible.find(function (a) {
+        return a.id === defApp;
+      });
+      appSelect.value = prefer ? prefer.id : compatible[0].id;
+    }
+    if (appLabel) appLabel.textContent = label;
+    appField.hidden = false;
+    appSelect.setAttribute("required", "required");
   }
 
   function syncWordpressFields(form) {
@@ -78,6 +152,7 @@
     if (!stackSelect) return;
     function syncStack() {
       syncVersionField(form);
+      syncAppVersionField(form);
       syncWordpressFields(form);
       syncLaravelFields(form);
     }
@@ -87,6 +162,12 @@
     form.querySelectorAll("[data-stack-choice]").forEach(function (choice) {
       choice.addEventListener("change", syncStack);
     });
+    var versionSelect = form.querySelector("[data-version-select]");
+    if (versionSelect) {
+      versionSelect.addEventListener("change", function () {
+        syncAppVersionField(form);
+      });
+    }
     syncStack();
   });
 })();

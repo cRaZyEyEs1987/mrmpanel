@@ -893,6 +893,7 @@ async def sites_create(
     stack_id: str = Form(...),
     create_db: str = Form("auto"),
     version: str = Form(""),
+    app_version: str = Form(""),
 ):
     gate = require_admin(request)
     if isinstance(gate, RedirectResponse):
@@ -901,7 +902,7 @@ async def sites_create(
     try:
         owner = selected_admin_user(request) or username.strip()
         domain = site_hostname(managed_domain, site_kind, subdomain)
-        _deploy(owner, domain, stack_id, create_db, version)
+        _deploy(owner, domain, stack_id, create_db, version, app_version=app_version)
         ok = f"Deployed {domain} ({stack_id}) — open http://{domain}"
     except Exception as e:
         error = str(e)
@@ -929,6 +930,7 @@ async def api_sites_deploy(request: Request):
     stack_id = str(form.get("stack_id", "")).strip()
     create_db = str(form.get("create_db", "auto"))
     version = str(form.get("version", ""))
+    app_version = str(form.get("app_version", ""))
     app_opts = {
         "wp_admin_user": str(form.get("wp_admin_user", "")).strip(),
         "wp_admin_password": str(form.get("wp_admin_password", "")).strip(),
@@ -953,6 +955,7 @@ async def api_sites_deploy(request: Request):
             version,
             progress=progress,
             app_opts=app_opts,
+            app_version=app_version,
         )
 
     deploy_jobs.run_in_background(job["id"], work)
@@ -1811,6 +1814,7 @@ async def user_sites_create(
     stack_id: str = Form(...),
     create_db: str = Form("auto"),
     version: str = Form(""),
+    app_version: str = Form(""),
 ):
     gate = require_hosting_user(request)
     if isinstance(gate, RedirectResponse):
@@ -1819,7 +1823,7 @@ async def user_sites_create(
     error = ok = None
     try:
         domain = site_hostname(managed_domain, site_kind, subdomain)
-        _deploy(username, domain, stack_id, create_db, version)
+        _deploy(username, domain, stack_id, create_db, version, app_version=app_version)
         ok = f"Deployed {domain} — open http://{domain.strip().lower()} (not :8080 / not bare IP)"
     except Exception as e:
         error = str(e)
@@ -1854,6 +1858,7 @@ async def api_user_sites_deploy(request: Request):
     stack_id = str(form.get("stack_id", "")).strip()
     create_db = str(form.get("create_db", "auto"))
     version = str(form.get("version", ""))
+    app_version = str(form.get("app_version", ""))
     app_opts = {
         "wp_admin_user": str(form.get("wp_admin_user", "")).strip(),
         "wp_admin_password": str(form.get("wp_admin_password", "")).strip(),
@@ -1878,6 +1883,7 @@ async def api_user_sites_deploy(request: Request):
             version,
             progress=progress,
             app_opts=app_opts,
+            app_version=app_version,
         )
 
     deploy_jobs.run_in_background(job["id"], work)
@@ -1894,6 +1900,14 @@ def _site_settings_ctx(
     stack = stacks.get_stack(site.get("stack") or "") or {}
     managed = domains.owner_for_hostname(site["domain"])
     mail_domain = managed["domain"] if managed else site["domain"]
+    app_ver = site.get("app_version")
+    if not app_ver and (site.get("stack") or "") == "wordpress":
+        try:
+            path = Path(site.get("path") or "")
+            if path.is_dir():
+                app_ver = sites._read_wp_version(path)
+        except Exception:
+            app_ver = None
     return ctx(
         request,
         site=site,
@@ -1903,6 +1917,9 @@ def _site_settings_ctx(
         php_ini=php_ini,
         stack_versions=stacks.stack_versions(stack),
         current_version=sites.site_display_version(site),
+        app_version=app_ver,
+        app_version_label=stack.get("app_version_label") or "App version",
+        has_app_versions=bool(stacks.stack_app_versions(stack)),
         error=error,
         ok=ok,
     )
@@ -2350,6 +2367,7 @@ def _deploy(
     version: str | None = None,
     progress: Any = None,
     app_opts: dict[str, str] | None = None,
+    app_version: str | None = None,
 ) -> dict[str, Any]:
     def p(msg: str, pct: int | None = None) -> None:
         if progress:
@@ -2375,6 +2393,7 @@ def _deploy(
     elif needs_db and create_db == "none":
         raise ValueError("This stack requires a database")
     ver = (version or "").strip() or None
+    app_ver = (app_version or "").strip() or None
     return sites.deploy_site(
         username,
         domain.strip().lower(),
@@ -2383,4 +2402,5 @@ def _deploy(
         version=ver,
         progress=progress,
         app_opts=app_opts,
+        app_version=app_ver,
     )

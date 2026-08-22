@@ -4,11 +4,18 @@ description: WordPress CMS (auto DB + one-click admin setup)
 category: php
 requires: [mariadb]
 preferred_db: mariadb
-image: "wordpress:7.0-php{version}-apache"
-# Desired core major.minor — deploy forces this via wp core download if image unpack is stale
-wp_core_version: "7.0"
+image: "wordpress:{app}-php{version}-apache"
 versions: ["8.2", "8.3", "8.4"]
 default_version: "8.3"
+app_version_label: "WordPress version"
+default_app_version: "7.0"
+app_versions:
+  - id: "7.0"
+    php: ["8.2", "8.3", "8.4"]
+  - id: "6.9"
+    php: ["8.2", "8.3", "8.4"]
+  - id: "6.8"
+    php: ["8.2", "8.3", "8.4"]
 container_port: 80
 workdir: /var/www/html
 volume_mount: /var/www/html

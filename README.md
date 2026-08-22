@@ -11,7 +11,7 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.37  
+**Current release:** 0.1.38  
 **Docs / install guides (human-readable):** https://hostingandstuff.online  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
 **Safety rollback (pre-0.1.29):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
@@ -66,7 +66,7 @@ Features are stored in `/var/lib/mrmpanel/features.json`.
 ## Upgrades
 
 Install **latest** from the mirror (default). To pin an exact release for a
-reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.37`) before running
+reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.38`) before running
 `install.sh`.
 
 - **Before any `--force` upgrade:** `sudo mrmpanel-backup`
@@ -87,8 +87,8 @@ reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.37`) before running
   unlimited); admin-only create/edit/assign
 - **Hosting users** with jailed SSH/SFTP and `/home/<user>/…` layouts
 - **Domains** owned by accounts (including separately owned subdomains)
-- **Sites** — WordPress (auto-install), Laravel (Composer create-project),
-  PHP, Node, Python stacks
+- **Sites** — WordPress (pick PHP + compatible core version, auto-install),
+  Laravel (Composer create-project), PHP, Node, Python stacks
 - **Databases** — MariaDB / PostgreSQL, site-linked or standalone
 - **Mail** — mailboxes under `/home/<user>/<email>/maildir`
 - **Webmail** — one shared Roundcube at `https://<domain>/webmail/` (passwordless **Open in webmail** from the Mail menu)
