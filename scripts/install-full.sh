@@ -2,7 +2,7 @@
 # mrmpanel installer — fresh servers only (Alma/Rocky/RHEL 9–10, Ubuntu 24.04)
 set -euo pipefail
 
-MRMPANEL_VERSION="0.1.30"
+MRMPANEL_VERSION="0.1.31"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Full installer lives in scripts/ — package root is one level up
 if [[ -d "${SCRIPT_DIR}/../panel" && -d "${SCRIPT_DIR}/../compose" ]]; then

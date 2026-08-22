@@ -625,6 +625,85 @@ def _dig(
     }
 
 
+def nameserver_pointing_status(domain: str) -> dict[str, Any]:
+    """Lightweight public check: does this domain's NS match panel ns1/ns2?
+
+    One recursive dig against 1.1.1.1 — suitable for Domains list rows.
+    Full registry/server checklist remains in diagnose_ns_acceptance().
+    """
+    features = load_features()
+    domain = (domain or "").strip().rstrip(".").lower()
+    ns1 = (features.get("ns1_hostname") or "").strip().rstrip(".").lower()
+    ns2 = (features.get("ns2_hostname") or "").strip().rstrip(".").lower()
+    expected = {name for name in (ns1, ns2) if name}
+
+    if not domain:
+        return {
+            "status": "unknown",
+            "label": "—",
+            "detail": "No domain",
+            "ok": False,
+            "found": [],
+            "expected": sorted(expected),
+        }
+    if not expected:
+        return {
+            "status": "unconfigured",
+            "label": "n/a",
+            "detail": "Set ns1/ns2 in Settings first",
+            "ok": False,
+            "found": [],
+            "expected": [],
+        }
+
+    pub = _dig("NS", domain, server="1.1.1.1", norecurse=False)
+    found = sorted(_ns_hostnames_from_dig(pub))
+    matched = expected & set(found)
+
+    if matched == expected:
+        status, label, ok = "pointed", "pointed", True
+        detail = f"Public NS match panel: {', '.join(found)}"
+    elif matched:
+        status, label, ok = "partial", "partial", False
+        detail = (
+            f"Has {', '.join(sorted(matched))} but not all panel NS. "
+            f"Public: {', '.join(found) or '—'}"
+        )
+    elif found:
+        status, label, ok = "other", "other NS", False
+        detail = f"Public NS: {', '.join(found)} (want {ns1} / {ns2})"
+    elif pub.get("error"):
+        status, label, ok = "unknown", "unknown", False
+        detail = str(pub.get("error") or "lookup failed")
+    else:
+        status, label, ok = "none", "not pointed", False
+        detail = (
+            f"No public NS yet (status={pub.get('status') or '—'}). "
+            f"Want {ns1} / {ns2}"
+        )
+
+    return {
+        "status": status,
+        "label": label,
+        "detail": detail,
+        "ok": ok,
+        "found": found,
+        "expected": sorted(expected),
+        "ns1": ns1,
+        "ns2": ns2,
+    }
+
+
+def attach_nameserver_status(
+    domain_list: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return domain rows with a public ns pointing check attached as ``ns``."""
+    return [
+        {**item, "ns": nameserver_pointing_status(str(item.get("domain") or ""))}
+        for item in domain_list
+    ]
+
+
 def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
     """Nameserver acceptance checklist (any TLD).
 

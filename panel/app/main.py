@@ -554,6 +554,7 @@ async def domains_page(request: Request):
     domain_list = (
         domains.list_domains_for_user(selected) if selected else domains.list_domains()
     )
+    domain_list = dns.attach_nameserver_status(domain_list)
     return templates.TemplateResponse(
         "domains.html",
         ctx(
@@ -592,6 +593,7 @@ async def domains_create(
     domain_list = (
         domains.list_domains_for_user(selected) if selected else domains.list_domains()
     )
+    domain_list = dns.attach_nameserver_status(domain_list)
     return templates.TemplateResponse(
         "domains.html",
         ctx(
@@ -1398,7 +1400,9 @@ async def user_domains_page(request: Request):
     gate = require_hosting_user(request)
     if isinstance(gate, RedirectResponse):
         return gate
-    domain_list = domains.list_domains_for_user(gate["username"])
+    domain_list = dns.attach_nameserver_status(
+        domains.list_domains_for_user(gate["username"])
+    )
     return templates.TemplateResponse(
         "user/domains.html",
         ctx(
@@ -1428,7 +1432,9 @@ async def user_domains_create(request: Request, domain: str = Form(...)):
             ok += f" (DNS warning: {meta['dns_error']})"
     except Exception as exc:
         error = str(exc)
-    domain_list = domains.list_domains_for_user(username)
+    domain_list = dns.attach_nameserver_status(
+        domains.list_domains_for_user(username)
+    )
     return templates.TemplateResponse(
         "user/domains.html",
         ctx(

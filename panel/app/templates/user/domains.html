@@ -5,6 +5,7 @@
   <h1>My domains</h1>
   <p class="muted">
     Add a domain here first, then deploy its main site or subdomains under My sites.
+    Nameservers shows whether public DNS lists this panel’s ns1/ns2 (may lag after a change).
   </p>
 </header>
 {% if error %}<p class="alert error">{{ error }}</p>{% endif %}
@@ -26,12 +27,23 @@
 </section>
 
 <table class="data">
-  <thead><tr><th>Domain</th><th>DNS</th><th></th></tr></thead>
+  <thead><tr><th>Domain</th><th>Zone</th><th>Nameservers</th><th></th></tr></thead>
   <tbody>
   {% for item in domain_list %}
     <tr>
       <td>{{ item.domain }}</td>
       <td>{% if item.dns_zone == 'warning' %}warning{% elif features.dns %}ready{% else %}external{% endif %}</td>
+      <td>
+        {% set ns = item.ns %}
+        {% if ns %}
+        <span
+          class="pill {% if ns.status == 'pointed' %}ok{% elif ns.status == 'partial' %}warn{% elif ns.status in ('other', 'none') %}bad{% endif %}"
+          title="{{ ns.detail }}"
+        >{{ ns.label }}</span>
+        {% else %}
+        <span class="muted">—</span>
+        {% endif %}
+      </td>
       <td class="row-actions">
         <form method="post" action="/u/domains/{{ item.domain }}/delete"
               onsubmit="return confirm('Delete domain assignment {{ item.domain }}?')">
@@ -40,7 +52,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="3" class="muted">No domains yet.</td></tr>
+    <tr><td colspan="4" class="muted">No domains yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

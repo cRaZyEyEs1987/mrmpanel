@@ -11,7 +11,7 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.30  
+**Current release:** 0.1.31  
 **Docs / install guides (human-readable):** https://hostingandstuff.online  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
 **Safety rollback (pre-0.1.29):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
@@ -66,7 +66,7 @@ Features are stored in `/var/lib/mrmpanel/features.json`.
 ## Upgrades
 
 Install **latest** from the mirror (default). To pin an exact release for a
-reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.30`) before running
+reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.31`) before running
 `install.sh`.
 
 - **Before any `--force` upgrade:** `sudo mrmpanel-backup`
@@ -88,8 +88,9 @@ reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.30`) before running
 - **Mail** — mailboxes under `/home/<user>/<email>/maildir`
 - **Webmail** — one shared Roundcube at `https://<domain>/webmail/` (passwordless **Open in webmail** from the Mail menu)
 - **Email security (users)** — per-domain SPF/DKIM/DMARC status and Enable missing
-- **DNS** — PowerDNS zones, MX/SPF/DKIM/DMARC helpers, Domains page record table,
-  Settings DNS debug for nameserver acceptance (any TLD; ZACR notes for `.za`)
+- **DNS** — PowerDNS zones, MX/SPF/DKIM/DMARC helpers, Domains page record table
+  and public NS pointing check, Settings DNS debug for nameserver acceptance
+  (any TLD; ZACR notes for `.za`)
 - **SSL** — Let's Encrypt via Traefik; dashboard warnings + activate button
 - **Operator ACL** — the sudo account that installed the panel can manage all
   `/home` files over SFTP without changing customer ownership

@@ -61,6 +61,8 @@ and a **public resolver** view (may lag).
 
 Every site deployed on this server gets a PowerDNS zone whose **NS** records point at the panel ns1/ns2 (not at the customer domain). At each customer’s registrar, set nameservers to the same ns1/ns2 hostnames.
 
+The **Domains** page (admin and hosting user) shows a **Nameservers** column: a public resolver check against Settings ns1/ns2 (`pointed` / `partial` / `other NS` / `not pointed`). Hover the badge for detail. It can lag briefly after a registrar change; use Settings → DNS debug for the full checklist.
+
 Default zone contents on deploy:
 
 - `A` for apex and `www` → server public IP
