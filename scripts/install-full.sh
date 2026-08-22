@@ -417,15 +417,39 @@ hostname_flow() {
 install_deps() {
   log "Installing base packages…"
   if [[ "$PKG_MGR" == "dnf" ]]; then
-    dnf -y install curl ca-certificates gnupg2 dnf-plugins-core bind-utils openssl tar gzip acl fail2ban
+    dnf -y install curl ca-certificates gnupg2 dnf-plugins-core bind-utils openssl tar gzip acl
   else
     apt-get update -y
-    DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates gnupg openssl dnsutils tar gzip acl fail2ban
+    DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates gnupg openssl dnsutils tar gzip acl
+  fi
+}
+
+# Fail2ban lives in EPEL on RHEL-family; Ubuntu ships it in universe/main.
+install_fail2ban() {
+  log "Installing fail2ban…"
+  if [[ "$PKG_MGR" == "dnf" ]]; then
+    if ! rpm -q fail2ban >/dev/null 2>&1; then
+      if ! rpm -q epel-release >/dev/null 2>&1; then
+        dnf -y install epel-release >/dev/null 2>&1 || warn "Could not install epel-release (fail2ban may be unavailable)"
+      fi
+      if ! dnf -y install fail2ban; then
+        warn "fail2ban package not available — Infrastructure will show it as missing"
+        return 0
+      fi
+    fi
+  else
+    if ! dpkg -s fail2ban >/dev/null 2>&1; then
+      DEBIAN_FRONTEND=noninteractive apt-get install -y fail2ban || {
+        warn "fail2ban package not available — Infrastructure will show it as missing"
+        return 0
+      }
+    fi
   fi
 }
 
 # Host SSH brute-force protection; shown on the panel Infrastructure dashboard.
 enable_fail2ban() {
+  install_fail2ban
   if ! command -v fail2ban-server >/dev/null 2>&1 && ! command -v fail2ban-client >/dev/null 2>&1; then
     warn "fail2ban not installed; skipping enable"
     return 0
