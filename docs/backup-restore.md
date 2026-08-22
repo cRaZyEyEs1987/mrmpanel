@@ -55,20 +55,13 @@ services back up, and recreates site containers from saved metadata.
 
 Then verify panel UI, sites/HTTPS, mail + webmail SSO, and DNS.
 
-## Pin a known release
+## Pin an exact release
 
-Baseline freeze:
+Default install is **latest**. To reproduce a specific build:
 
 ```bash
-export MRMPANEL_VERSION=0.1.24
+export MRMPANEL_VERSION=0.1.29
 curl -fsSL https://mrmpanel.hostingandstuff.online/install.sh | sudo bash -s -- --all
 ```
 
-Backup-capable installer (this docs version and later):
-
-```bash
-export MRMPANEL_VERSION=0.1.25
-curl -fsSL https://mrmpanel.hostingandstuff.online/install.sh | sudo bash -s -- --all --force
-```
-
-Always run `sudo mrmpanel-backup` before `--force`.
+Always run `sudo mrmpanel-backup` before `--force` upgrades.

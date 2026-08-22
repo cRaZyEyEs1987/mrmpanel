@@ -14,8 +14,7 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 **Current release:** 0.1.29  
 **Docs / install guides (human-readable):** https://hostingandstuff.online  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
-**Known-good baseline tag:** [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
-**Safety pin (pre-0.1.29 work):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
+**Safety rollback (pre-0.1.29):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
 
 Compare panels, VPS picks, and mail caveats on the public site:
 
@@ -64,10 +63,12 @@ curl -fsSL "$MRMPANEL_MIRROR/install.sh" | sudo bash -s -- --web --mail --mariad
 
 Features are stored in `/var/lib/mrmpanel/features.json`.
 
-## Baseline / upgrades
+## Upgrades
 
-- **Known-good freeze:** tag [`v0.1.24`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.24)
-  (webmail SSO + production disclaimer). Pin with `MRMPANEL_VERSION=0.1.24`.
+Install **latest** from the mirror (default). To pin an exact release for a
+reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.29`) before running
+`install.sh`.
+
 - **Before any `--force` upgrade:** `sudo mrmpanel-backup`
 - **Rollback on the same server:** `sudo mrmpanel-restore /var/backups/mrmpanel/….tar.gz`
 - Details: [Backup & restore](docs/backup-restore.md)
