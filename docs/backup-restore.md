@@ -60,7 +60,7 @@ Then verify panel UI, sites/HTTPS, mail + webmail SSO, and DNS.
 Default install is **latest**. To reproduce a specific build:
 
 ```bash
-export MRMPANEL_VERSION=0.1.34
+export MRMPANEL_VERSION=0.1.35
 curl -fsSL https://mrmpanel.hostingandstuff.online/install.sh | sudo bash -s -- --all
 ```
 

@@ -11,6 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import authenticate, is_admin, is_hosting_user
 from .config import ensure_data_dirs, get_settings, load_features, save_features
+from .csrf import CSRFMiddleware, ensure_csrf_token
 from .services import (
     certs,
     databases,
@@ -18,6 +19,7 @@ from .services import (
     dns,
     domains,
     mail,
+    panel_http,
     plans,
     plugins,
     runtime,
@@ -30,14 +32,18 @@ from .services import (
 
 ensure_data_dirs()
 settings = get_settings()
+_features_boot = load_features()
+_https_only_sessions = not bool(_features_boot.get("panel_http_public", True))
 
 app = FastAPI(title="mrmpanel", docs_url=None, redoc_url=None)
+# CSRF must be inside SessionMiddleware so request.session is available.
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     session_cookie=settings.session_cookie,
     same_site="lax",
-    https_only=False,
+    https_only=_https_only_sessions,
 )
 
 BASE = Path(__file__).resolve().parent
@@ -76,6 +82,7 @@ def ctx(request: Request, **extra: Any) -> dict[str, Any]:
         "title": settings.panel_title,
         "admin_users": hosting_users,
         "selected_user": selected_user,
+        "csrf_token": ensure_csrf_token(request),
         **extra,
     }
 
@@ -220,6 +227,8 @@ async def dashboard(request: Request):
             connection=connection,
             network_health=server_health.network_health(),
             mail_service=mail_svc,
+            infra_services=runtime.infra_service_rows(),
+            panel_http=panel_http.panel_http_status(),
             site_runtime=runtime.site_runtime_rows() if features.get("web") else [],
             mail_security_gaps=gaps,
             flash_ok=flash_ok,
@@ -242,6 +251,48 @@ async def mail_service_control(request: Request, action: str):
             request.session["dash_ok"] = f"Mail container: {action} succeeded"
         else:
             request.session["dash_error"] = result.get("error") or f"Mail {action} failed"
+    except Exception as exc:
+        request.session["dash_error"] = str(exc)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/services/infra/{service_id}/{action}")
+async def infra_service_control(request: Request, service_id: str, action: str):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        result = runtime.control_infra(service_id, action)
+        label = result.get("label") or service_id
+        if result.get("ok"):
+            request.session["dash_ok"] = f"{label}: {action} succeeded"
+        else:
+            request.session["dash_error"] = (
+                f"{label}: {result.get('error') or action + ' failed'}"
+            )
+    except Exception as exc:
+        request.session["dash_error"] = str(exc)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/services/panel-http/{mode}")
+async def panel_http_control(request: Request, mode: str):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    mode = mode.strip().lower()
+    if mode not in {"enable", "disable"}:
+        request.session["dash_error"] = "Unknown panel HTTP action"
+        return RedirectResponse("/", status_code=303)
+    try:
+        result = panel_http.set_panel_http_public(mode == "enable")
+        note = "; ".join(result.get("notes") or [])
+        if mode == "disable":
+            request.session["dash_ok"] = (
+                "Public HTTP (:8080) disabled. Use HTTPS. " + note
+            )
+        else:
+            request.session["dash_ok"] = "Public HTTP (:8080) re-enabled. " + note
     except Exception as exc:
         request.session["dash_error"] = str(exc)
     return RedirectResponse("/", status_code=303)

@@ -261,3 +261,92 @@ def mail_security_gaps() -> list[dict[str, Any]]:
         if missing:
             gaps.append({"domain": row["domain"], "missing": missing, "row": row})
     return gaps
+
+
+# Infrastructure containers (ops dashboard)
+INFRA_SERVICES: dict[str, dict[str, Any]] = {
+    "traefik": {
+        "label": "Traefik",
+        "feature": "web",
+        "candidates": ("mrmpanel-traefik-1", "compose-traefik-1", "traefik"),
+        "warning": "Stopping Traefik drops HTTPS and site routing.",
+    },
+    "mariadb": {
+        "label": "MariaDB",
+        "feature": "mariadb",
+        "candidates": ("mrmpanel-mariadb",),
+        "warning": "Stopping MariaDB breaks sites that use it.",
+    },
+    "postgres": {
+        "label": "PostgreSQL",
+        "feature": "postgres",
+        "candidates": ("mrmpanel-postgres",),
+        "warning": "Stopping PostgreSQL breaks sites that use it.",
+    },
+    "pdns": {
+        "label": "PowerDNS",
+        "feature": "dns",
+        "candidates": ("mrmpanel-pdns",),
+        "warning": "Stopping PowerDNS breaks authoritative DNS for hosted zones.",
+    },
+}
+
+
+def resolve_container_name(candidates: tuple[str, ...] | list[str]) -> str | None:
+    for name in candidates:
+        st = container_status(name)
+        if st.get("exists"):
+            return name
+    # Prefer first candidate even if missing (for start after remove)
+    return candidates[0] if candidates else None
+
+
+def infra_service_rows() -> list[dict[str, Any]]:
+    from ..config import load_features
+
+    features = load_features()
+    rows: list[dict[str, Any]] = []
+    names: list[str] = []
+    for key, meta in INFRA_SERVICES.items():
+        if not features.get(meta["feature"]):
+            continue
+        cname = resolve_container_name(meta["candidates"]) or meta["candidates"][0]
+        names.append(cname)
+        st = container_status(cname)
+        rows.append(
+            {
+                "id": key,
+                "label": meta["label"],
+                "warning": meta["warning"],
+                "container": cname,
+                "status": st.get("status") or "missing",
+                "running": bool(st.get("running")),
+                "detail": st.get("detail") or "",
+                "cpu": "—",
+                "mem": "—",
+                "mem_perc": "—",
+            }
+        )
+    stats = _stats_map(names)
+    for row in rows:
+        cname = row["container"]
+        if cname in stats:
+            row["cpu"] = stats[cname]["cpu"]
+            row["mem"] = stats[cname]["mem"]
+            row["mem_perc"] = stats[cname]["mem_perc"]
+    return rows
+
+
+def control_infra(service_id: str, action: str) -> dict[str, Any]:
+    from ..config import load_features
+
+    meta = INFRA_SERVICES.get(service_id)
+    if not meta:
+        raise ValueError(f"Unknown infrastructure service: {service_id}")
+    if not load_features().get(meta["feature"]):
+        raise ValueError(f"{meta['label']} is not enabled on this server")
+    cname = resolve_container_name(meta["candidates"]) or meta["candidates"][0]
+    result = control_container(cname, action)
+    result["service"] = service_id
+    result["label"] = meta["label"]
+    return result

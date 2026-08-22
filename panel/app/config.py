@@ -61,6 +61,7 @@ def default_features() -> dict[str, Any]:
         "mail_security_dkim": False,
         "mail_security_dmarc": False,
         "mail_dmarc_policy": "quarantine",
+        "panel_http_public": True,
     }
 
 

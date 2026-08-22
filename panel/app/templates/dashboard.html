@@ -21,7 +21,6 @@
     {% else %}
       Activate SSL below, then use the HTTPS hostname link.
     {% endif %}
-    HTTP access will remain available until the planned “Disable HTTP” feature is added.
   </p>
 </section>
 {% endif %}
@@ -35,6 +34,34 @@
       Log in securely at
       <a href="https://{{ hostname_ssl.hostname }}/" target="_blank" rel="noopener">https://{{ hostname_ssl.hostname }}</a>.
     </p>
+  </section>
+  <section class="ops-section">
+    <h2>Panel HTTP access</h2>
+    <article class="ops-card ops-card-wide">
+      <div class="ops-card-head">
+        <div>
+          <h3>Port 8080 (public)</h3>
+          <p class="muted">{{ panel_http.detail }}</p>
+        </div>
+        <span class="pill {% if panel_http.public %}warn{% else %}ok{% endif %}">
+          {% if panel_http.public %}Open{% else %}Closed{% endif %}
+        </span>
+      </div>
+      <div class="svc-actions">
+        {% if panel_http.public %}
+        <form method="post" action="/services/panel-http/disable"
+              onsubmit="return confirm('Close firewall port 8080? Use HTTPS only after this.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-muted">Disable public HTTP</button>
+        </form>
+        {% else %}
+        <form method="post" action="/services/panel-http/enable">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Re-enable public HTTP</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
   </section>
   {% elif hostname_ssl.has_cert %}
   <section class="alert warning">
@@ -139,6 +166,41 @@
 <section class="alert info">
   <strong>Mail module off</strong>
   <p>Mail was not selected during install, so the mail service card is hidden.</p>
+</section>
+{% endif %}
+
+{% if infra_services %}
+<section class="ops-section">
+  <h2>Infrastructure</h2>
+  <p class="muted">Start / stop shared services. Stopping Traefik drops HTTPS; stopping databases affects sites.</p>
+  <div class="ops-grid">
+    {% for svc in infra_services %}
+    <article class="ops-card">
+      <div class="ops-card-head">
+        <div>
+          <h3>{{ svc.label }}</h3>
+          <p class="muted"><code>{{ svc.container }}</code> · {{ svc.status }}</p>
+        </div>
+        <span class="pill {% if svc.running %}ok{% else %}bad{% endif %}">
+          {% if svc.running %}Running{% else %}{{ svc.status|title }}{% endif %}
+        </span>
+      </div>
+      <dl class="ops-meta">
+        <div><dt>CPU</dt><dd>{{ svc.cpu }}</dd></div>
+        <div><dt>Memory</dt><dd>{{ svc.mem }}</dd></div>
+      </dl>
+      <p class="muted tiny">{{ svc.warning }}</p>
+      <div class="svc-actions">
+        <form method="post" action="/services/infra/{{ svc.id }}/start"><button type="submit">Start</button></form>
+        <form method="post" action="/services/infra/{{ svc.id }}/stop"><button type="submit" class="btn-muted">Stop</button></form>
+        <form method="post" action="/services/infra/{{ svc.id }}/kill"
+              onsubmit="return confirm('Force-kill {{ svc.label }}?');">
+          <button type="submit" class="btn-danger">Kill</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
 </section>
 {% endif %}
 

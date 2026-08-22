@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}{{ title }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/panel.css">
   <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
@@ -29,6 +30,7 @@
       <p class="nav-section-title">Account</p>
       {% if admin_users %}
       <form method="post" action="/admin/select-user" class="user-scope">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="next_url" value="{{ request.url.path }}">
         <label for="admin-user-scope">Working in</label>
         <select id="admin-user-scope" name="username" onchange="this.form.submit()">
@@ -74,6 +76,7 @@
       </nav>
       {% endif %}
       <form method="post" action="/logout" class="logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Sign out</button>
       </form>
     </aside>
@@ -84,5 +87,6 @@
   {% else %}
     {% block body %}{% endblock %}
   {% endif %}
+  <script src="/static/js/csrf.js"></script>
 </body>
 </html>

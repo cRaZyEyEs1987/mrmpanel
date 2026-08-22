@@ -6,11 +6,13 @@ The admin home page (`/`) is a **server overview**, not a feature catalogue. It 
 
 - **PTR / RDNS** for the public IP vs the panel hostname
 - **NS1 / NS2** A records vs the IPs stored in Settings
+- **Panel HTTP** — disable/re-enable public `:8080` once the hostname SSL cert is trusted
 - **Mail container** status with Start / Stop / Kill (errors from a failed start are shown briefly)
+- **Infrastructure** — Traefik, MariaDB, PostgreSQL, PowerDNS Start / Stop / Kill when those features are on
 - **Sites** with Docker status, CPU/memory snapshot, and Start / Stop / Kill
 - A warning when managed domains are missing **MX / SPF / DKIM / DMARC**
 
-SSL and unsafe-HTTP alerts remain at the top of the page.
+SSL and unsafe-HTTP alerts remain at the top of the page. Panel forms are CSRF-protected.
 
 ## Hosting plans (quotas)
 

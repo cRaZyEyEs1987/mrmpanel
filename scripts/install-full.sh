@@ -2,7 +2,7 @@
 # mrmpanel installer — fresh servers only (Alma/Rocky/RHEL 9–10, Ubuntu 24.04)
 set -euo pipefail
 
-MRMPANEL_VERSION="0.1.34"
+MRMPANEL_VERSION="0.1.35"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Full installer lives in scripts/ — package root is one level up
 if [[ -d "${SCRIPT_DIR}/../panel" && -d "${SCRIPT_DIR}/../compose" ]]; then
@@ -687,11 +687,15 @@ copy_tree() {
 
 write_features() {
   mkdir -p "$DATA_ROOT"
-  local pub
+  local pub http_public="true"
   pub="$(get_public_ip)"
   [[ -n "$NS_BASE_DOMAIN" ]] || derive_nameservers
   [[ -n "$NS1_IP" ]] || NS1_IP="$pub"
   [[ -n "$NS2_IP" ]] || NS2_IP="$pub"
+  if [[ -f "$FEATURES_FILE" ]]; then
+    http_public="$(python3 -c "import json; d=json.load(open('${FEATURES_FILE}')); print('true' if d.get('panel_http_public', True) else 'false')" 2>/dev/null || echo true)"
+  fi
+  PANEL_HTTP_PUBLIC="$http_public"
   cat > "$FEATURES_FILE" <<EOF
 {
   "version": "${MRMPANEL_VERSION}",
@@ -709,7 +713,8 @@ write_features() {
   "ns1_hostname": "${NS1_HOSTNAME}",
   "ns2_hostname": "${NS2_HOSTNAME}",
   "ns1_ip": "${NS1_IP}",
-  "ns2_ip": "${NS2_IP}"
+  "ns2_ip": "${NS2_IP}",
+  "panel_http_public": ${http_public}
 }
 EOF
   chmod 644 "$FEATURES_FILE"
@@ -915,7 +920,10 @@ install_jail_helpers() {
 
 # Collect ports as port/proto (DNS needs UDP+TCP 53)
 required_ports() {
-  echo "8080/tcp" # panel always
+  # Skip public 8080 when admin disabled panel HTTP (Traefik HTTPS still works)
+  if [[ "${PANEL_HTTP_PUBLIC:-true}" != "false" ]]; then
+    echo "8080/tcp"
+  fi
   if [[ "$FEATURE_WEB" == "1" ]]; then
     echo "80/tcp"
     echo "443/tcp"
@@ -1232,15 +1240,11 @@ create_system_user() {
 }
 
 print_summary() {
-  local panel_ip panel_url admin_pw
+  local panel_ip panel_url
   panel_ip="$(get_public_ip)"
   [[ -n "$panel_ip" ]] || panel_ip="$(get_local_ip)"
   [[ -n "$panel_ip" ]] || panel_ip="SERVER_IP"
   panel_url="http://${panel_ip}:8080"
-  admin_pw=""
-  if [[ -f "${DATA_ROOT}/secrets/admin_password" ]]; then
-    admin_pw="$(tr -d '\n' < "${DATA_ROOT}/secrets/admin_password")"
-  fi
 
   echo
   echo -e "${CYAN}════════════════════════════════════════${NC}"
@@ -1258,11 +1262,7 @@ print_summary() {
     fi
   fi
   echo "  Username : admin"
-  if [[ -n "$admin_pw" ]]; then
-    echo "  Password : ${admin_pw}"
-  else
-    echo "  Password : (see ${DATA_ROOT}/secrets/admin_password)"
-  fi
+  echo "  Password : see ${DATA_ROOT}/secrets/admin_password"
   if [[ -n "${OPENED_PORTS:-}" ]]; then
     echo "  Firewall : opened ${OPENED_PORTS}"
   fi
