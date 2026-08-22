@@ -229,7 +229,7 @@
 {% if infra_services %}
 <section class="ops-section">
   <h2>Infrastructure</h2>
-  <p class="muted">Start / stop shared services. Stopping Traefik drops HTTPS; stopping databases affects sites.</p>
+  <p class="muted">Start / stop shared services (Docker and host Fail2ban). Stopping Traefik drops HTTPS; stopping databases affects sites.</p>
   <div class="ops-grid">
     {% for svc in infra_services %}
     <article class="ops-card">
@@ -250,9 +250,9 @@
       <div class="svc-actions">
         <form method="post" action="/services/infra/{{ svc.id }}/start"><button type="submit">Start</button></form>
         <form method="post" action="/services/infra/{{ svc.id }}/stop"><button type="submit" class="btn-muted">Stop</button></form>
-        <form method="post" action="/services/infra/{{ svc.id }}/kill"
-              onsubmit="return confirm('Force-kill {{ svc.label }}?');">
-          <button type="submit" class="btn-danger">Kill</button>
+        <form method="post" action="/services/infra/{{ svc.id }}/{{ svc.kill_action or 'kill' }}"
+              onsubmit="return confirm('{% if svc.kind == 'systemd' %}Restart{% else %}Force-kill{% endif %} {{ svc.label }}?');">
+          <button type="submit" class="btn-danger">{{ svc.kill_label or 'Kill' }}</button>
         </form>
       </div>
     </article>

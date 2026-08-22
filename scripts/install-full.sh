@@ -2,7 +2,7 @@
 # mrmpanel installer — fresh servers only (Alma/Rocky/RHEL 9–10, Ubuntu 24.04)
 set -euo pipefail
 
-MRMPANEL_VERSION="0.1.36"
+MRMPANEL_VERSION="0.1.37"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Full installer lives in scripts/ — package root is one level up
 if [[ -d "${SCRIPT_DIR}/../panel" && -d "${SCRIPT_DIR}/../compose" ]]; then
@@ -417,10 +417,33 @@ hostname_flow() {
 install_deps() {
   log "Installing base packages…"
   if [[ "$PKG_MGR" == "dnf" ]]; then
-    dnf -y install curl ca-certificates gnupg2 dnf-plugins-core bind-utils openssl tar gzip acl
+    dnf -y install curl ca-certificates gnupg2 dnf-plugins-core bind-utils openssl tar gzip acl fail2ban
   else
     apt-get update -y
-    DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates gnupg openssl dnsutils tar gzip acl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates gnupg openssl dnsutils tar gzip acl fail2ban
+  fi
+}
+
+# Host SSH brute-force protection; shown on the panel Infrastructure dashboard.
+enable_fail2ban() {
+  if ! command -v fail2ban-server >/dev/null 2>&1 && ! command -v fail2ban-client >/dev/null 2>&1; then
+    warn "fail2ban not installed; skipping enable"
+    return 0
+  fi
+  log "Enabling fail2ban…"
+  # Minimal sshd jail if the distro didn't ship a local jail.d snippet.
+  if [[ ! -f /etc/fail2ban/jail.d/sshd.local ]] && [[ ! -f /etc/fail2ban/jail.local ]]; then
+    mkdir -p /etc/fail2ban/jail.d
+    cat >/etc/fail2ban/jail.d/sshd.local <<'EOF'
+[sshd]
+enabled = true
+EOF
+  fi
+  systemctl enable --now fail2ban 2>/dev/null || systemctl restart fail2ban 2>/dev/null || warn "fail2ban enable failed (check logs)"
+  if systemctl is-active --quiet fail2ban 2>/dev/null; then
+    log "fail2ban is active"
+  else
+    warn "fail2ban installed but not active yet"
   fi
 }
 
@@ -1329,6 +1352,7 @@ main() {
   patch_traefik_email
   write_traefik_panel_route
   open_firewall_ports
+  enable_fail2ban
   start_stack
   clear_resume
   print_summary

@@ -11,7 +11,7 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.36  
+**Current release:** 0.1.37  
 **Docs / install guides (human-readable):** https://hostingandstuff.online  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
 **Safety rollback (pre-0.1.29):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
@@ -66,7 +66,7 @@ Features are stored in `/var/lib/mrmpanel/features.json`.
 ## Upgrades
 
 Install **latest** from the mirror (default). To pin an exact release for a
-reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.36`) before running
+reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.37`) before running
 `install.sh`.
 
 - **Before any `--force` upgrade:** `sudo mrmpanel-backup`
@@ -78,7 +78,7 @@ reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.36`) before running
 - **Admin panel** on `:8080`, with HTTPS on the server hostname via Traefik;
   disable public `:8080` from the dashboard once SSL is trusted
 - **Server overview** — PTR/RDNS and NS health, site + mail + infra
-  (Traefik/DB/DNS) Start/Stop/Kill with usage snapshots, host OS + mrmpanel
+  (Traefik/DB/DNS/Fail2ban) Start/Stop/Kill with usage snapshots, host OS + mrmpanel
   update checks, and a warning when domains lack MX/SPF/DKIM/DMARC
 - **CSRF** protection on panel forms and same-origin API POSTs
 - **Updates** — apply host package updates or upgrade mrmpanel from the release
