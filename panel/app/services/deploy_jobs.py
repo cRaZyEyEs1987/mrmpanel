@@ -98,6 +98,7 @@ ProgressFn = Callable[[str, Optional[int]], None]
 def run_in_background(job_id: str, fn: Callable[[ProgressFn], dict[str, Any]]) -> None:
     def _runner() -> None:
         def progress(message: str, pct: int | None = None) -> None:
+            # allow callers to pass progress(msg) only
             log(job_id, message, pct)
 
         try:

@@ -9,6 +9,63 @@
 {% if flash_ok %}<p class="alert ok">{{ flash_ok }}</p>{% endif %}
 {% if flash_error %}<pre class="alert error service-error">{{ flash_error }}</pre>{% endif %}
 
+{% if updates_info %}
+<section class="ops-section">
+  <h2>Updates</h2>
+  <div class="ops-grid">
+    <article class="ops-card">
+      <div class="ops-card-head">
+        <div>
+          <h3>Host OS</h3>
+          <p class="muted">{{ updates_info.os.os or 'Linux' }} · {{ updates_info.os.manager or '—' }}</p>
+        </div>
+        <span class="pill {% if updates_info.os.up_to_date %}ok{% elif updates_info.os.error %}warn{% else %}bad{% endif %}">
+          {% if updates_info.os.up_to_date %}Current{% elif updates_info.os.error %}Check failed{% else %}Updates{% endif %}
+        </span>
+      </div>
+      <p class="muted">{{ updates_info.os.detail }}</p>
+      {% if updates_info.os.packages %}
+      <p class="muted tiny">{{ updates_info.os.packages[:8]|join(', ') }}{% if updates_info.os.packages|length > 8 %}…{% endif %}</p>
+      {% endif %}
+      <div class="svc-actions">
+        <form method="get" action="/">
+          <input type="hidden" name="refresh_updates" value="1">
+          <button type="submit" class="btn-muted">Recheck</button>
+        </form>
+        {% if not updates_info.os.up_to_date and not updates_info.os.error %}
+        <button type="button" data-os-upgrade>Apply OS updates</button>
+        {% endif %}
+      </div>
+    </article>
+    <article class="ops-card">
+      <div class="ops-card-head">
+        <div>
+          <h3>mrmpanel</h3>
+          <p class="muted">
+            Installed v{{ updates_info.panel.current or features.version or '—' }}
+            {% if updates_info.panel.latest %} · Mirror v{{ updates_info.panel.latest }}{% endif %}
+          </p>
+        </div>
+        <span class="pill {% if updates_info.panel.update_available %}bad{% elif updates_info.panel.error %}warn{% else %}ok{% endif %}">
+          {% if updates_info.panel.update_available %}Update{% elif updates_info.panel.error %}Check failed{% else %}Current{% endif %}
+        </span>
+      </div>
+      <p class="muted">{{ updates_info.panel.detail }}</p>
+      <div class="svc-actions">
+        <form method="get" action="/">
+          <input type="hidden" name="refresh_updates" value="1">
+          <button type="submit" class="btn-muted">Recheck</button>
+        </form>
+        {% if updates_info.panel.update_available %}
+        <button type="button" data-panel-upgrade>Upgrade panel</button>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+  {% if updates_info.cached %}<p class="muted tiny">Cached check (≤5 min). Recheck for a fresh scan.</p>{% endif %}
+</section>
+{% endif %}
+
 {% if not connection.secure %}
 <section class="alert error connection-warning">
   <strong>Unsafe connection — this session is using HTTP</strong>
@@ -254,4 +311,5 @@
 {% endif %}
 
 <script src="/static/js/ssl-progress.js"></script>
+<script src="/static/js/updates-progress.js"></script>
 {% endblock %}

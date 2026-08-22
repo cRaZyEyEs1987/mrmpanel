@@ -26,6 +26,7 @@ from .services import (
     server_health,
     sites,
     stacks,
+    updates,
     users,
     webmail_sso,
 )
@@ -219,6 +220,15 @@ async def dashboard(request: Request):
     flash_error = request.session.pop("dash_error", None)
     mail_svc = runtime.mail_service_status() if features.get("mail") else None
     gaps = runtime.mail_security_gaps() if features.get("mail") else []
+    refresh = request.query_params.get("refresh_updates") == "1"
+    try:
+        updates_info = updates.updates_status(refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        updates_info = {
+            "os": {"detail": str(exc), "up_to_date": True, "available": 0, "error": str(exc)},
+            "panel": {"detail": str(exc), "update_available": False, "error": str(exc)},
+            "cached": False,
+        }
     return templates.TemplateResponse(
         "dashboard.html",
         ctx(
@@ -231,6 +241,7 @@ async def dashboard(request: Request):
             panel_http=panel_http.panel_http_status(),
             site_runtime=runtime.site_runtime_rows() if features.get("web") else [],
             mail_security_gaps=gaps,
+            updates_info=updates_info,
             flash_ok=flash_ok,
             flash_error=flash_error,
         ),
@@ -296,6 +307,44 @@ async def panel_http_control(request: Request, mode: str):
     except Exception as exc:
         request.session["dash_error"] = str(exc)
     return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/updates/os")
+async def api_updates_os(request: Request):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return {"error": "unauthorized"}
+    try:
+        job = updates.start_os_upgrade_job()
+        return {"job_id": job["id"]}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+@app.post("/api/updates/panel")
+async def api_updates_panel(request: Request):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return {"error": "unauthorized"}
+    try:
+        status = updates.check_panel_updates()
+        if not status.get("update_available"):
+            return {"error": status.get("detail") or "No panel update available"}
+        job = updates.start_panel_upgrade_job()
+        return {"job_id": job["id"]}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+@app.get("/api/updates/jobs/{job_id}")
+async def api_updates_job(request: Request, job_id: str):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return {"error": "unauthorized"}
+    job = deploy_jobs.get_job(job_id)
+    if not job:
+        return {"error": "Job not found"}
+    return job
 
 
 @app.post("/services/sites/{site_id}/{action}")
