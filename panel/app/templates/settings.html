@@ -142,15 +142,15 @@
   <p class="alert error">PowerDNS API is not reachable on 127.0.0.1:8081 — check the <code>mrmpanel-pdns</code> container.</p>
   {% endif %}
 
-  <h2 style="margin-top:1.5rem">DNS debug (.co.za / ZACR checks)</h2>
+  <h2 style="margin-top:1.5rem">DNS debug (nameserver acceptance)</h2>
   <p class="muted">
-    Runs the same kind of checks the registry does against this server (authoritative SOA/NS/glue),
-    then compares with the public <code>.co.za</code> parent. Use this when Virtualmin “just worked”
-    but a nameserver move is stuck.
+    Checks that this server answers authoritatively for the zone (SOA/NS/glue),
+    then compares with the <strong>parent registry zone</strong> (e.g. <code>com</code>,
+    <code>co.za</code>) and a public resolver. Use when a nameserver move is stuck.
   </p>
   <form method="post" action="/settings/dns-debug" class="grid-form">
     <label>Domain to test
-      <input type="text" name="domain" value="{{ (dns_report.domain if dns_report else features.ns_base_domain) or '' }}" placeholder="example.co.za">
+      <input type="text" name="domain" value="{{ (dns_report.domain if dns_report else features.ns_base_domain) or '' }}" placeholder="example.com">
     </label>
     <button type="submit">Run DNS debug</button>
   </form>

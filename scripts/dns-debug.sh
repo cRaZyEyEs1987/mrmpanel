@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# ZACR / .co.za nameserver acceptance debug (run on the mrmpanel server).
+# Nameserver acceptance debug — any TLD (run on the mrmpanel server).
 # Usage:
 #   sudo bash scripts/dns-debug.sh
+#   sudo bash scripts/dns-debug.sh example.com
 #   sudo bash scripts/dns-debug.sh example.co.za
 set -euo pipefail
 

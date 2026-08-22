@@ -47,12 +47,15 @@ On the server (after install/upgrade that includes this script):
 
 ```bash
 sudo bash /opt/mrmpanel/scripts/dns-debug.sh
+sudo bash /opt/mrmpanel/scripts/dns-debug.sh yourdomain.com
 sudo bash /opt/mrmpanel/scripts/dns-debug.sh yourdomain.co.za
 ```
 
 Or in the panel: **Settings → Run DNS debug**.
 
-The report separates **server-side** failures (zone/PowerDNS) from **parent delegation** (registrar still publishing old NS).
+The report separates **server-side** failures (zone/PowerDNS) from **parent
+delegation** (what the registry parent zone — `com`, `co.za`, etc. — publishes)
+and a **public resolver** view (may lag).
 
 ### Customer domains
 

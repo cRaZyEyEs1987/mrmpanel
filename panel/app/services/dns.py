@@ -60,6 +60,48 @@ def is_public_suffix(name: str) -> bool:
     return "." not in name
 
 
+def registry_parent_zone(domain: str) -> str:
+    """Parent zone that delegates this apex (example.com → com, example.co.za → co.za)."""
+    domain = (domain or "").strip().rstrip(".").lower()
+    if not domain or "." not in domain:
+        return domain
+    parts = domain.split(".")
+    if len(parts) >= 2:
+        two = ".".join(parts[-2:])
+        if two in MULTI_PART_SUFFIXES:
+            return two
+    return parts[-1]
+
+
+def _ns_hostnames_from_dig(result: dict[str, Any]) -> set[str]:
+    """Collect NS target hostnames from dig answer/authority lines."""
+    found: set[str] = set()
+    for ln in result.get("answers") or []:
+        parts = ln.split()
+        if len(parts) >= 5 and parts[3].upper() == "NS":
+            found.add(parts[4].rstrip(".").lower())
+    for ln in (result.get("raw") or "").splitlines():
+        if ln.startswith(";") or not ln.strip():
+            continue
+        parts = ln.split()
+        if len(parts) >= 5 and parts[3].upper() == "NS":
+            found.add(parts[4].rstrip(".").lower())
+    return found
+
+
+def lookup_parent_nameservers(suffix: str) -> list[str]:
+    """NS hostnames for a TLD / public suffix via a public resolver."""
+    suffix = (suffix or "").strip().rstrip(".").lower()
+    if not suffix:
+        return []
+    q = _dig("NS", suffix, server="1.1.1.1", norecurse=False)
+    names = sorted(_ns_hostnames_from_dig(q))
+    # Known fallbacks when public NS lookup fails (offline resolver, etc.)
+    if not names and suffix in ("co.za", "org.za", "net.za", "web.za"):
+        return ["coza1.dnsnode.net", "coza2.dnsnode.net"]
+    return names
+
+
 def parent_domain(hostname: str) -> str:
     """Strip one left label, but never peel into a public suffix.
 
@@ -584,9 +626,10 @@ def _dig(
 
 
 def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
-    """ZACR/.co.za-oriented nameserver acceptance checklist.
+    """Nameserver acceptance checklist (any TLD).
 
-    Returns a report with pass/fail checks and next steps. Safe to show in admin UI.
+    Server-side: PowerDNS zone + authoritative SOA/NS/glue on ns IPs.
+    Parent: NS published by the registry parent zone (com, co.za, …).
     """
     features = load_features()
     domain = (domain or features.get("ns_base_domain") or "").strip().rstrip(".").lower()
@@ -595,6 +638,7 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
     ns1_ip = (features.get("ns1_ip") or features.get("public_ip") or "").strip()
     ns2_ip = (features.get("ns2_ip") or features.get("public_ip") or "").strip()
     public_ip = (features.get("public_ip") or ns1_ip or "").strip()
+    parent_zone = registry_parent_zone(domain)
 
     report: dict[str, Any] = {
         "domain": domain,
@@ -602,6 +646,7 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
         "ns2": ns2,
         "ns1_ip": ns1_ip,
         "ns2_ip": ns2_ip,
+        "parent_zone": parent_zone,
         "checks": [],
         "summary": "",
         "next_steps": [],
@@ -627,7 +672,7 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         add("zone_exists", False, f"Zone lookup failed: {exc}")
 
-    # Local authoritative checks (what ZACR does against glue IPs)
+    # Local authoritative checks (strict registries probe glue IPs the same way)
     for label, ip in (("ns1", ns1_ip), ("ns2", ns2_ip)):
         soa = _dig("SOA", domain, server=ip, norecurse=True)
         aa_ok = bool(soa.get("aa") and soa.get("status") == "NOERROR")
@@ -635,7 +680,7 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
             f"auth_soa_{label}",
             aa_ok,
             f"SOA @{ip}: status={soa.get('status')} flags={soa.get('flags') or '—'} "
-            f"{'(AA OK)' if aa_ok else '(need AA + NOERROR — ZACR fails without this)'}"
+            f"{'(AA OK)' if aa_ok else '(need AA + NOERROR — registries reject without this)'}"
             + (f" err={soa.get('error')}" if soa.get("error") else ""),
         )
         ns_q = _dig("NS", domain, server=ip, norecurse=True)
@@ -667,28 +712,59 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
         critical=False,
     )
 
-    # Parent / public view — shows whether registrar change published
-    parent = _dig("NS", domain, server="coza1.dnsnode.net", norecurse=True)
-    parent_raw = (parent.get("raw") or "").lower()
-    published = ns1 in parent_raw and ns2 in parent_raw
+    # Parent / registry view — NS the parent zone publishes for this domain
+    parent_nss = lookup_parent_nameservers(parent_zone)
+    add(
+        "parent_zone_ns",
+        bool(parent_nss),
+        f"Parent zone {parent_zone or '—'} NS: {', '.join(parent_nss) if parent_nss else 'lookup failed'}",
+        critical=False,
+    )
+
+    published = False
+    parent_detail = "no parent NS to query"
+    queried: list[str] = []
+    for pns in parent_nss[:4]:
+        parent = _dig("NS", domain, server=pns, norecurse=True)
+        queried.append(pns)
+        names = _ns_hostnames_from_dig(parent)
+        raw_l = (parent.get("raw") or "").lower()
+        # Match exact NS targets, or substring in raw (glue/additional edge cases)
+        hit = (ns1 in names and ns2 in names) or (ns1 in raw_l and ns2 in raw_l)
+        if hit:
+            published = True
+            parent_detail = (
+                f"@{pns} (parent of {parent_zone}) already publishes {ns1}/{ns2}"
+            )
+            break
+        ns_lines = " | ".join(
+            ln.strip()
+            for ln in (parent.get("raw") or "").splitlines()
+            if "NS" in ln.upper() and not ln.strip().startswith(";")
+        )[:500]
+        parent_detail = (
+            f"@{pns}: NOT yet on your NS. "
+            + (ns_lines or parent.get("error") or parent.get("status") or "no NS data")
+        )
+
     add(
         "parent_delegation",
         published,
-        "co.za parent NS for this domain: "
-        + (
-            f"already publishes {ns1}/{ns2}"
-            if published
-            else "NOT yet on your NS (still elsewhere). NS lines: "
-            + " | ".join(
-                ln.strip()
-                for ln in (parent.get("raw") or "").splitlines()
-                if "NS" in ln.upper() and not ln.strip().startswith(";")
-            )[:500]
-            or parent.get("error")
-            or parent.get("status")
-            or "no data"
-        ),
+        parent_detail
+        + (f" (queried {', '.join(queried)})" if queried and not published else ""),
         critical=False,  # registry/registrar publish — not a PowerDNS zone bug
+    )
+
+    # Recursive public view (cache may lag parent by minutes)
+    pub_ns = _dig("NS", domain, server="1.1.1.1", norecurse=False)
+    pub_names = _ns_hostnames_from_dig(pub_ns)
+    pub_delegated = ns1 in pub_names and ns2 in pub_names
+    add(
+        "public_ns_view",
+        pub_delegated,
+        f"Public resolver NS {domain}: {sorted(pub_names) or pub_ns.get('status') or '—'}"
+        + (" (matches panel ns1/ns2)" if pub_delegated else " (not your NS yet, or still cached)"),
+        critical=False,
     )
 
     pub_ns1 = _dig("A", ns1, server="1.1.1.1")
@@ -701,13 +777,13 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
         critical=False,
     )
 
-    # Apex A on local (Virtualmin always has this)
+    # Apex A on local (typical panel zones include this)
     apex = _dig("A", domain, server=ns1_ip)
     apex_ok = bool(apex.get("aa") and public_ip in " ".join(apex.get("answers") or []))
     add(
         "apex_a",
         apex_ok,
-        f"Apex A @{ns1_ip}: {apex.get('answers') or []} (Virtualmin zones always include this)",
+        f"Apex A @{ns1_ip}: {apex.get('answers') or []} (panel zones usually include this)",
         critical=False,
     )
 
@@ -718,7 +794,9 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
         if c["critical"]
         and c["name"]
         not in (
+            "parent_zone_ns",
             "parent_delegation",
+            "public_ns_view",
             "public_ns1_resolves",
             "ns_ip_same",
             "apex_a",
@@ -729,25 +807,30 @@ def diagnose_ns_acceptance(domain: str | None = None) -> dict[str, Any]:
 
     if not failed_critical and published:
         report["summary"] = (
-            "Server-side checks PASS and .co.za parent already delegates to your NS. "
+            f"Server-side checks PASS and parent zone ({parent_zone}) already delegates to your NS. "
             "If a domain still fails, check that domain’s own zone exists here before setting NS."
         )
     elif not failed_critical and not published:
         report["summary"] = (
-            "Server-side checks PASS (same class of answers Virtualmin must give). "
-            "The .co.za parent still does NOT list your NS — problem is registrar/registry "
-            "publish (or pending glue), not PowerDNS zone content on this box."
+            "Server-side checks PASS. "
+            f"The {parent_zone or 'parent'} zone still does NOT list your NS — problem is "
+            "registrar/registry publish (or pending glue), not PowerDNS zone content on this box."
         )
         report["next_steps"] = [
-            "In zadomain: confirm the domain nameservers are set to ns1/ns2 (glue hosts alone are not enough).",
+            "At the registrar: set the domain nameservers to ns1/ns2 (glue hosts alone are not enough).",
+            "If nameservers are in-bailiwick, register glue/child hosts with this server’s IP first.",
             "Check for pending/error status on glue or NS change.",
-            "Ask zadomain support for the ZACR poll/error message if it stays pending.",
             f"Verify from outside: dig +norecurse SOA {domain} @{ns1_ip}  → flags must include aa.",
         ]
+        if parent_zone.endswith(".za") or parent_zone == "za":
+            report["next_steps"].insert(
+                0,
+                "For .za / ZACR: ask the registrar for the registry poll/error if the change stays pending.",
+            )
     else:
         report["summary"] = (
             f"{len(failed_critical)} critical server-side check(s) FAILED — fix these before "
-            "the registry will accept your nameservers."
+            "a strict registry will accept your nameservers."
         )
         report["next_steps"] = [
             c["name"] + ": " + c["detail"] for c in failed_critical
