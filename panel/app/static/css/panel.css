@@ -535,6 +535,18 @@ pre.code {
   background: rgba(196, 92, 92, 0.14);
 }
 
+.sec-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+.sec-pills .pill {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  letter-spacing: 0;
+}
+
 .svc-actions {
   display: flex;
   flex-wrap: wrap;

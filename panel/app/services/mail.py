@@ -692,6 +692,61 @@ def mail_security_audit(domain_names: list[str]) -> list[dict[str, Any]]:
     return rows
 
 
+def attach_mail_security_status(
+    domain_list: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach MX/SPF/DKIM/DMARC check results to each domain row as ``mail_sec``."""
+    features = load_features()
+    if not features.get("mail"):
+        return [{**item, "mail_sec": None} for item in domain_list]
+
+    names = [str(item.get("domain") or "") for item in domain_list if item.get("domain")]
+    by_domain = {row["domain"]: row for row in mail_security_audit(names)}
+    out: list[dict[str, Any]] = []
+    for item in domain_list:
+        row = by_domain.get(str(item.get("domain") or ""))
+        if not row:
+            out.append({**item, "mail_sec": None})
+            continue
+        missing: list[str] = []
+        for key, label in (
+            ("mx", "MX"),
+            ("spf", "SPF"),
+            ("dkim", "DKIM"),
+            ("dmarc", "DMARC"),
+        ):
+            if not row[key]["valid"]:
+                missing.append(label)
+        dmarc = row["dmarc"]
+        if dmarc["valid"] and dmarc.get("enforced"):
+            dmarc_label = "Enforced"
+        elif dmarc["valid"]:
+            dmarc_label = (dmarc.get("policy") or "ok").title()
+        else:
+            dmarc_label = "Missing"
+        out.append(
+            {
+                **item,
+                "mail_sec": {
+                    "mx": bool(row["mx"]["valid"]),
+                    "spf": bool(row["spf"]["valid"]),
+                    "dkim": bool(row["dkim"]["valid"]),
+                    "dmarc": bool(dmarc["valid"]),
+                    "dmarc_label": dmarc_label,
+                    "ok": not missing,
+                    "missing": missing,
+                    "source": row.get("source") or "public",
+                    "detail": (
+                        "All set"
+                        if not missing
+                        else f"Missing {', '.join(missing)}"
+                    ),
+                },
+            }
+        )
+    return out
+
+
 def configure_mail_security(
     domain_names: list[str],
     *,

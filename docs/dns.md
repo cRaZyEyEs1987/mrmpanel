@@ -63,6 +63,8 @@ Every site deployed on this server gets a PowerDNS zone whose **NS** records poi
 
 The **Domains** page (admin and hosting user) shows a **Nameservers** column: a public resolver check against Settings ns1/ns2 (`pointed` / `partial` / `other NS` / `not pointed`). Hover the badge for detail. It can lag briefly after a registrar change; use Settings → DNS debug for the full checklist.
 
+When mail is enabled, the same table shows **Mail** badges for MX / SPF / DKIM / DMARC (authoritative zone when hosted here, otherwise public DNS). Hosting users can fix gaps from their dashboard (“Enable missing”); admins also have the full table under Settings.
+
 Default zone contents on deploy:
 
 - `A` for apex and `www` → server public IP

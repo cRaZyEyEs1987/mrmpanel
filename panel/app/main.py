@@ -545,16 +545,20 @@ def _domain_records_ctx(
     }
 
 
+def _enrich_domain_list(domain_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach public NS pointing + mail MX/SPF/DKIM/DMARC status for Domains pages."""
+    return mail.attach_mail_security_status(dns.attach_nameserver_status(domain_list))
+
+
 @app.get("/domains", response_class=HTMLResponse)
 async def domains_page(request: Request):
     gate = require_admin(request)
     if isinstance(gate, RedirectResponse):
         return gate
     selected = selected_admin_user(request)
-    domain_list = (
+    domain_list = _enrich_domain_list(
         domains.list_domains_for_user(selected) if selected else domains.list_domains()
     )
-    domain_list = dns.attach_nameserver_status(domain_list)
     return templates.TemplateResponse(
         "domains.html",
         ctx(
@@ -590,10 +594,9 @@ async def domains_create(
             ok += f" (DNS warning: {meta['dns_error']})"
     except Exception as exc:
         error = str(exc)
-    domain_list = (
+    domain_list = _enrich_domain_list(
         domains.list_domains_for_user(selected) if selected else domains.list_domains()
     )
-    domain_list = dns.attach_nameserver_status(domain_list)
     return templates.TemplateResponse(
         "domains.html",
         ctx(
@@ -1400,7 +1403,7 @@ async def user_domains_page(request: Request):
     gate = require_hosting_user(request)
     if isinstance(gate, RedirectResponse):
         return gate
-    domain_list = dns.attach_nameserver_status(
+    domain_list = _enrich_domain_list(
         domains.list_domains_for_user(gate["username"])
     )
     return templates.TemplateResponse(
@@ -1432,9 +1435,7 @@ async def user_domains_create(request: Request, domain: str = Form(...)):
             ok += f" (DNS warning: {meta['dns_error']})"
     except Exception as exc:
         error = str(exc)
-    domain_list = dns.attach_nameserver_status(
-        domains.list_domains_for_user(username)
-    )
+    domain_list = _enrich_domain_list(domains.list_domains_for_user(username))
     return templates.TemplateResponse(
         "user/domains.html",
         ctx(

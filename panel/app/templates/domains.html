@@ -7,7 +7,8 @@
     Domains belong to an account independently of sites. A domain may itself be
     a subdomain, such as <code>frank.example.com</code>, when it needs a
     different owner and credentials.
-    Nameservers column is a public DNS view vs Settings ns1/ns2 (may lag after a change).
+    Nameservers is a public DNS view vs Settings ns1/ns2.
+    Mail shows MX/SPF/DKIM/DMARC from this server’s zone when hosted here (else public DNS).
   </p>
 </header>
 {% if error %}<p class="alert error">{{ error }}</p>{% endif %}
@@ -41,7 +42,16 @@
 </section>
 
 <table class="data">
-  <thead><tr><th>Domain</th><th>Owner</th><th>Zone</th><th>Nameservers</th><th></th></tr></thead>
+  <thead>
+    <tr>
+      <th>Domain</th>
+      <th>Owner</th>
+      <th>Zone</th>
+      <th>Nameservers</th>
+      <th>Mail</th>
+      <th></th>
+    </tr>
+  </thead>
   <tbody>
   {% for item in domain_list %}
     <tr>
@@ -63,6 +73,20 @@
         <span class="muted">—</span>
         {% endif %}
       </td>
+      <td>
+        {% if not features.mail %}
+        <span class="muted">n/a</span>
+        {% elif item.mail_sec %}
+        <div class="sec-pills" title="{{ item.mail_sec.detail }}">
+          <span class="pill {% if item.mail_sec.mx %}ok{% else %}bad{% endif %}">MX</span>
+          <span class="pill {% if item.mail_sec.spf %}ok{% else %}bad{% endif %}">SPF</span>
+          <span class="pill {% if item.mail_sec.dkim %}ok{% else %}bad{% endif %}">DKIM</span>
+          <span class="pill {% if item.mail_sec.dmarc %}ok{% else %}bad{% endif %}">{{ item.mail_sec.dmarc_label }}</span>
+        </div>
+        {% else %}
+        <span class="muted">—</span>
+        {% endif %}
+      </td>
       <td class="row-actions">
         <form method="post" action="/domains/{{ item.domain }}/delete"
               onsubmit="return confirm('Delete domain assignment {{ item.domain }}?')">
@@ -71,7 +95,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="5" class="muted">No domains in this account scope.</td></tr>
+    <tr><td colspan="6" class="muted">No domains in this account scope.</td></tr>
   {% endfor %}
   </tbody>
 </table>
