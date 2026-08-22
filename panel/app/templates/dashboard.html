@@ -244,7 +244,7 @@
       </div>
       <dl class="ops-meta">
         <div><dt>CPU</dt><dd>{{ svc.cpu }}</dd></div>
-        <div><dt>Memory</dt><dd>{{ svc.mem }}</dd></div>
+        <div><dt>Memory</dt><dd>{{ svc.mem }}{% if svc.mem_perc and svc.mem_perc != '—' %} <span class="muted">({{ svc.mem_perc }})</span>{% endif %}</dd></div>
       </dl>
       <p class="muted tiny">{{ svc.warning }}</p>
       <div class="svc-actions">

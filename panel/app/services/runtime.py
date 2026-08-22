@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import subprocess
+import time
 from typing import Any
 
 from . import sites
@@ -314,6 +316,176 @@ def resolve_container_name(candidates: tuple[str, ...] | list[str]) -> str | Non
     return candidates[0] if candidates else None
 
 
+def _host_mem_total_bytes() -> int | None:
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        return int(parts[1]) * 1024
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _format_iec_bytes(num: int) -> str:
+    n = float(max(0, num))
+    for unit, div in (("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024)):
+        if n >= div or unit == "KiB":
+            val = n / div
+            if val >= 10:
+                return f"{val:.1f}{unit}"
+            return f"{val:.2f}{unit}"
+    return f"{int(n)}B"
+
+
+def _cgroup_path(control_group: str) -> str | None:
+    cg = (control_group or "").strip()
+    if not cg or cg == "/":
+        return None
+    # Unified hierarchy (EL9+): /sys/fs/cgroup + ControlGroup
+    path = f"/sys/fs/cgroup{cg}"
+    try:
+        if os.path.isdir(path):
+            return path
+    except OSError:
+        pass
+    return None
+
+
+def _read_cgroup_usage_usec(cg_path: str) -> int | None:
+    try:
+        with open(f"{cg_path}/cpu.stat", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("usage_usec"):
+                    return int(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _read_cgroup_memory_current(cg_path: str) -> int | None:
+    try:
+        with open(f"{cg_path}/memory.current", encoding="utf-8") as fh:
+            return int(fh.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _pid_rss_bytes(pid: int) -> int | None:
+    try:
+        with open(f"/proc/{pid}/status", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        return int(parts[1]) * 1024
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _ps_cpu_percent(pid: int) -> float | None:
+    try:
+        proc = subprocess.run(
+            ["ps", "-o", "pcpu=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    raw = (proc.stdout or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw.split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def systemd_unit_stats(unit: str) -> dict[str, str]:
+    """CPU/memory snapshot for a host systemd unit (cgroup preferred)."""
+    empty = {"cpu": "—", "mem": "—", "mem_perc": "—"}
+    unit = (unit or "").strip()
+    if not unit:
+        return empty
+    try:
+        proc = subprocess.run(
+            [
+                "systemctl",
+                "show",
+                unit,
+                "--property=MainPID,MemoryCurrent,ControlGroup,ActiveState",
+                "--no-page",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return empty
+    props: dict[str, str] = {}
+    for line in (proc.stdout or "").splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            props[k.strip()] = v.strip()
+    if props.get("ActiveState") != "active":
+        return empty
+    try:
+        main_pid = int(props.get("MainPID") or "0")
+    except ValueError:
+        main_pid = 0
+
+    cg_path = _cgroup_path(props.get("ControlGroup") or "")
+    mem_bytes: int | None = None
+    try:
+        mc = int(props.get("MemoryCurrent") or "")
+        # systemd uses very large sentinel when accounting is unavailable
+        if 0 < mc < (1 << 62):
+            mem_bytes = mc
+    except ValueError:
+        pass
+    if mem_bytes is None and cg_path:
+        mem_bytes = _read_cgroup_memory_current(cg_path)
+    if mem_bytes is None and main_pid > 0:
+        mem_bytes = _pid_rss_bytes(main_pid)
+    if mem_bytes is None:
+        return empty
+
+    host_total = _host_mem_total_bytes()
+    if host_total and host_total > 0:
+        mem_str = f"{_format_iec_bytes(mem_bytes)} / {_format_iec_bytes(host_total)}"
+        mem_perc = f"{(100.0 * mem_bytes / host_total):.2f}%"
+    else:
+        mem_str = _format_iec_bytes(mem_bytes)
+        mem_perc = "—"
+
+    cpu_str = "—"
+    if cg_path:
+        u0 = _read_cgroup_usage_usec(cg_path)
+        t0 = time.monotonic()
+        if u0 is not None:
+            time.sleep(0.15)
+            u1 = _read_cgroup_usage_usec(cg_path)
+            t1 = time.monotonic()
+            if u1 is not None and t1 > t0:
+                delta_usec = max(0, u1 - u0)
+                elapsed_usec = (t1 - t0) * 1_000_000.0
+                # Percent of one CPU (matches docker stats style for low usage)
+                pct = 100.0 * delta_usec / elapsed_usec
+                cpu_str = f"{pct:.2f}%"
+    if cpu_str == "—" and main_pid > 0:
+        pcpu = _ps_cpu_percent(main_pid)
+        if pcpu is not None:
+            cpu_str = f"{pcpu:.2f}%"
+
+    return {"cpu": cpu_str, "mem": mem_str, "mem_perc": mem_perc}
+
+
 def systemd_unit_status(unit: str) -> dict[str, Any]:
     """Return status for a host systemd unit (e.g. fail2ban)."""
     unit = (unit or "").strip()
@@ -450,6 +622,11 @@ def infra_service_rows() -> list[dict[str, Any]]:
         if kind == "systemd":
             unit = str(meta.get("unit") or key)
             st = systemd_unit_status(unit)
+            usage = systemd_unit_stats(unit) if st.get("running") else {
+                "cpu": "—",
+                "mem": "—",
+                "mem_perc": "—",
+            }
             rows.append(
                 {
                     "id": key,
@@ -460,9 +637,9 @@ def infra_service_rows() -> list[dict[str, Any]]:
                     "status": st.get("status") or "missing",
                     "running": bool(st.get("running")),
                     "detail": st.get("detail") or "",
-                    "cpu": "—",
-                    "mem": "—",
-                    "mem_perc": "—",
+                    "cpu": usage["cpu"],
+                    "mem": usage["mem"],
+                    "mem_perc": usage["mem_perc"],
                     "kill_label": "Restart",
                     "kill_action": "restart",
                 }

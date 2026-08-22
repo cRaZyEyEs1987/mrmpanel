@@ -11,7 +11,7 @@ optional shared mail/SQL/DNS. No Docker-in-Docker.
 > so **at your own risk**. There is no warranty; expect bugs, breaking changes,
 > and incomplete features.
 
-**Current release:** 0.1.38  
+**Current release:** 0.1.39  
 **Docs / install guides (human-readable):** https://hostingandstuff.online  
 **Source:** https://github.com/cRaZyEyEs1987/mrmpanel  
 **Safety rollback (pre-0.1.29):** branch [`safety/pre-0.1.29`](https://github.com/cRaZyEyEs1987/mrmpanel/tree/safety/pre-0.1.29) / tag [`v0.1.28`](https://github.com/cRaZyEyEs1987/mrmpanel/releases/tag/v0.1.28)
