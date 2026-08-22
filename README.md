@@ -88,9 +88,9 @@ reproducible box, set `MRMPANEL_VERSION` (e.g. `0.1.34`) before running
 - **Mail** — mailboxes under `/home/<user>/<email>/maildir`
 - **Webmail** — one shared Roundcube at `https://<domain>/webmail/` (passwordless **Open in webmail** from the Mail menu)
 - **Email security (users)** — per-domain SPF/DKIM/DMARC status and Enable missing
-- **DNS** — PowerDNS zones with Domains-page record editor (mail MX/SPF/DKIM/DMARC
-  and NS/SOA locked), MX/SPF/DKIM/DMARC helpers, public NS pointing check,
-  Settings DNS debug for nameserver acceptance (any TLD; ZACR notes for `.za`)
+- **DNS** — PowerDNS zones with Domains-page record editor (mail MX/SPF/DKIM/DMARC,
+  NS/SOA, and ns1/ns2 glue locked), MX/SPF/DKIM/DMARC helpers, public NS pointing
+  check, Settings DNS debug for nameserver acceptance (any TLD; ZACR notes for `.za`)
 - **SSL** — Let's Encrypt via Traefik; dashboard warnings + activate button
 - **Operator ACL** — the sudo account that installed the panel can manage all
   `/home` files over SFTP without changing customer ownership
