@@ -65,6 +65,8 @@ The **Domains** page (admin and hosting user) shows a **Nameservers** column: a 
 
 When mail is enabled, the same table shows **Mail** badges for MX / SPF / DKIM / DMARC (authoritative zone when hosted here, otherwise public DNS). Hosting users can fix gaps from their dashboard (“Enable missing”); admins also have the full table under Settings.
 
+On hosted zones, the Domains page DNS table lets you **add / edit / delete** A, AAAA, CNAME, TXT, SRV, and CAA records. **MX, SPF, DKIM, DMARC, NS, and SOA** are greyed out (“locked”) — only panel mail security / zone setup may change those.
+
 Default zone contents on deploy:
 
 - `A` for apex and `www` → server public IP

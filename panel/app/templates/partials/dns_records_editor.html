@@ -1,0 +1,100 @@
+{# Requires: record_domain, dns_record_rows, dns_records_source, dns_records_error,
+   domain_list, records_action_base (e.g. /domains or /u/domains), selected_user optional #}
+<section class="card-form dns-records">
+  <div class="records-head">
+    <div>
+      <h2>DNS records</h2>
+      <p class="muted">
+        Edit A/AAAA/CNAME/TXT and similar for this zone.
+        Mail records (MX, SPF, DKIM, DMARC) and zone NS/SOA stay locked — use panel mail security for those.
+      </p>
+    </div>
+    <form method="get" action="{{ records_action_base }}">
+      <label>Domain
+        <select name="domain" onchange="this.form.submit()">
+          {% for item in domain_list %}
+          <option value="{{ item.domain }}" {% if item.domain == record_domain %}selected{% endif %}>
+            {{ item.domain }}{% if show_record_owner and item.username %} — {{ item.username }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  </div>
+
+  {% if dns_records_error %}
+  <p class="alert error">Could not load DNS records: {{ dns_records_error }}</p>
+  {% elif dns_records_source == 'external' %}
+  <p class="alert info">
+    {{ record_domain }} uses external DNS. Records can only be edited when this
+    server hosts the zone.
+  </p>
+  {% else %}
+  <form method="post" action="{{ records_action_base }}/{{ record_domain }}/records" class="grid-form dns-add-form">
+    <h3>Add record</h3>
+    <label>Name
+      <input name="name" placeholder="@ or www" autocomplete="off">
+    </label>
+    <label>Type
+      <select name="rtype">
+        <option value="A">A</option>
+        <option value="AAAA">AAAA</option>
+        <option value="CNAME">CNAME</option>
+        <option value="TXT">TXT</option>
+        <option value="SRV">SRV</option>
+        <option value="CAA">CAA</option>
+      </select>
+    </label>
+    <label>TTL
+      <input name="ttl" type="number" min="60" max="86400" value="3600">
+    </label>
+    <label>Value
+      <input name="value" required placeholder="203.0.113.10 or target hostname" autocomplete="off">
+    </label>
+    <button type="submit">Add record</button>
+  </form>
+
+  <table class="data">
+    <thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Value</th><th></th></tr></thead>
+    <tbody>
+    {% for record in dns_record_rows %}
+      <tr class="{% if record.locked %}record-locked{% endif %}">
+        <td><code>{{ record.name }}</code></td>
+        <td>{{ record.type }}</td>
+        <td>{{ record.ttl }}</td>
+        <td class="record-value">
+          {% if record.locked %}
+          <code title="{{ record.lock_reason }}">{{ record.value }}</code>
+          <span class="pill" title="{{ record.lock_reason }}">locked</span>
+          {% else %}
+          <form method="post" action="{{ records_action_base }}/{{ record_domain }}/records/update" class="dns-edit-form">
+            <input type="hidden" name="name" value="{{ record.name }}">
+            <input type="hidden" name="rtype" value="{{ record.type }}">
+            <input type="hidden" name="old_value" value="{{ record.value }}">
+            <input type="number" name="ttl" min="60" max="86400" value="{{ record.ttl }}" aria-label="TTL">
+            <input type="text" name="value" value="{{ record.value }}" required aria-label="Value">
+            <button type="submit">Save</button>
+          </form>
+          {% endif %}
+        </td>
+        <td class="row-actions">
+          {% if record.locked %}
+          <span class="muted tiny" title="{{ record.lock_reason }}">panel only</span>
+          {% else %}
+          <form method="post" action="{{ records_action_base }}/{{ record_domain }}/records/delete"
+                onsubmit="return confirm('Delete this {{ record.type }} record?')">
+            <input type="hidden" name="name" value="{{ record.name }}">
+            <input type="hidden" name="rtype" value="{{ record.type }}">
+            <input type="hidden" name="value" value="{{ record.value }}">
+            <button type="submit" class="danger">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">No records found in this zone.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>

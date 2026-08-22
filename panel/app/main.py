@@ -559,14 +559,16 @@ async def domains_page(request: Request):
     domain_list = _enrich_domain_list(
         domains.list_domains_for_user(selected) if selected else domains.list_domains()
     )
+    flash_ok = request.session.pop("domains_ok", None)
+    flash_error = request.session.pop("domains_error", None)
     return templates.TemplateResponse(
         "domains.html",
         ctx(
             request,
             domain_list=domain_list,
             hosting_users=users.list_hosting_users(),
-            error=None,
-            ok=None,
+            error=flash_error,
+            ok=flash_ok,
             **_domain_records_ctx(
                 domain_list,
                 request.query_params.get("domain") or "",
@@ -623,6 +625,116 @@ async def domains_delete(request: Request, domain_name: str):
         except ValueError:
             return RedirectResponse("/domains?delete=blocked", status_code=303)
     return RedirectResponse("/domains", status_code=303)
+
+
+def _admin_domain_allowed(request: Request, domain_name: str) -> str:
+    selected = selected_admin_user(request)
+    name = domains.normalize_domain(domain_name)
+    meta = domains.get_domain(name)
+    if not meta:
+        raise ValueError(f"Unknown domain: {name}")
+    if selected and meta.get("username") != selected:
+        raise ValueError(f"{name} is outside the selected account scope")
+    return name
+
+
+def _domains_record_redirect(request: Request, domain: str, *, ok: str = "", error: str = ""):
+    if ok:
+        request.session["domains_ok"] = ok
+    if error:
+        request.session["domains_error"] = error
+    return RedirectResponse(f"/domains?domain={domain}", status_code=303)
+
+
+@app.post("/domains/{domain_name}/records")
+async def domains_record_add(
+    request: Request,
+    domain_name: str,
+    name: str = Form(""),
+    rtype: str = Form(...),
+    value: str = Form(...),
+    ttl: str = Form("3600"),
+):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        domain = _admin_domain_allowed(request, domain_name)
+        row = dns.add_zone_record(domain, name, rtype, value, ttl=int(ttl or 3600))
+        return _domains_record_redirect(
+            request,
+            domain,
+            ok=f"Added {row['type']} {row['name']} → {row['value']}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            domain = domains.normalize_domain(domain_name)
+        except ValueError:
+            domain = domain_name
+        return _domains_record_redirect(request, domain, error=str(exc))
+
+
+@app.post("/domains/{domain_name}/records/update")
+async def domains_record_update(
+    request: Request,
+    domain_name: str,
+    name: str = Form(...),
+    rtype: str = Form(...),
+    old_value: str = Form(...),
+    value: str = Form(...),
+    ttl: str = Form("3600"),
+):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        domain = _admin_domain_allowed(request, domain_name)
+        row = dns.update_zone_record(
+            domain,
+            name,
+            rtype,
+            old_value,
+            value,
+            ttl=int(ttl or 3600),
+        )
+        return _domains_record_redirect(
+            request,
+            domain,
+            ok=f"Updated {row['type']} {row['name']}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            domain = domains.normalize_domain(domain_name)
+        except ValueError:
+            domain = domain_name
+        return _domains_record_redirect(request, domain, error=str(exc))
+
+
+@app.post("/domains/{domain_name}/records/delete")
+async def domains_record_delete(
+    request: Request,
+    domain_name: str,
+    name: str = Form(...),
+    rtype: str = Form(...),
+    value: str = Form(...),
+):
+    gate = require_admin(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        domain = _admin_domain_allowed(request, domain_name)
+        dns.delete_zone_record(domain, name, rtype, value)
+        return _domains_record_redirect(
+            request,
+            domain,
+            ok=f"Deleted {rtype} {name}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            domain = domains.normalize_domain(domain_name)
+        except ValueError:
+            domain = domain_name
+        return _domains_record_redirect(request, domain, error=str(exc))
 
 
 def _admin_sites_ctx(
@@ -1406,13 +1518,15 @@ async def user_domains_page(request: Request):
     domain_list = _enrich_domain_list(
         domains.list_domains_for_user(gate["username"])
     )
+    flash_ok = request.session.pop("u_domains_ok", None)
+    flash_error = request.session.pop("u_domains_error", None)
     return templates.TemplateResponse(
         "user/domains.html",
         ctx(
             request,
             domain_list=domain_list,
-            error=None,
-            ok=None,
+            error=flash_error,
+            ok=flash_ok,
             **_domain_records_ctx(
                 domain_list,
                 request.query_params.get("domain") or "",
@@ -1460,6 +1574,113 @@ async def user_domains_delete(request: Request, domain_name: str):
         except ValueError:
             return RedirectResponse("/u/domains?delete=blocked", status_code=303)
     return RedirectResponse("/u/domains", status_code=303)
+
+
+def _user_domain_allowed(username: str, domain_name: str) -> str:
+    name = domains.normalize_domain(domain_name)
+    meta = domains.get_domain(name)
+    if not meta or meta.get("username") != username:
+        raise ValueError(f"Unknown domain: {name}")
+    return name
+
+
+def _u_domains_record_redirect(request: Request, domain: str, *, ok: str = "", error: str = ""):
+    if ok:
+        request.session["u_domains_ok"] = ok
+    if error:
+        request.session["u_domains_error"] = error
+    return RedirectResponse(f"/u/domains?domain={domain}", status_code=303)
+
+
+@app.post("/u/domains/{domain_name}/records")
+async def user_domains_record_add(
+    request: Request,
+    domain_name: str,
+    name: str = Form(""),
+    rtype: str = Form(...),
+    value: str = Form(...),
+    ttl: str = Form("3600"),
+):
+    gate = require_hosting_user(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        domain = _user_domain_allowed(gate["username"], domain_name)
+        row = dns.add_zone_record(domain, name, rtype, value, ttl=int(ttl or 3600))
+        return _u_domains_record_redirect(
+            request,
+            domain,
+            ok=f"Added {row['type']} {row['name']} → {row['value']}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            domain = domains.normalize_domain(domain_name)
+        except ValueError:
+            domain = domain_name
+        return _u_domains_record_redirect(request, domain, error=str(exc))
+
+
+@app.post("/u/domains/{domain_name}/records/update")
+async def user_domains_record_update(
+    request: Request,
+    domain_name: str,
+    name: str = Form(...),
+    rtype: str = Form(...),
+    old_value: str = Form(...),
+    value: str = Form(...),
+    ttl: str = Form("3600"),
+):
+    gate = require_hosting_user(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        domain = _user_domain_allowed(gate["username"], domain_name)
+        row = dns.update_zone_record(
+            domain,
+            name,
+            rtype,
+            old_value,
+            value,
+            ttl=int(ttl or 3600),
+        )
+        return _u_domains_record_redirect(
+            request,
+            domain,
+            ok=f"Updated {row['type']} {row['name']}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            domain = domains.normalize_domain(domain_name)
+        except ValueError:
+            domain = domain_name
+        return _u_domains_record_redirect(request, domain, error=str(exc))
+
+
+@app.post("/u/domains/{domain_name}/records/delete")
+async def user_domains_record_delete(
+    request: Request,
+    domain_name: str,
+    name: str = Form(...),
+    rtype: str = Form(...),
+    value: str = Form(...),
+):
+    gate = require_hosting_user(request)
+    if isinstance(gate, RedirectResponse):
+        return gate
+    try:
+        domain = _user_domain_allowed(gate["username"], domain_name)
+        dns.delete_zone_record(domain, name, rtype, value)
+        return _u_domains_record_redirect(
+            request,
+            domain,
+            ok=f"Deleted {rtype} {name}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            domain = domains.normalize_domain(domain_name)
+        except ValueError:
+            domain = domain_name
+        return _u_domains_record_redirect(request, domain, error=str(exc))
 
 
 @app.get("/u/sites", response_class=HTMLResponse)

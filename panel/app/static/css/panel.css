@@ -373,6 +373,35 @@ table.data tr:last-child td { border-bottom: none; }
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.record-locked {
+  opacity: 0.72;
+  background: rgba(0, 0, 0, 0.12);
+}
+.record-locked td {
+  color: var(--muted);
+}
+.dns-add-form {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.dns-add-form h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+.dns-edit-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.dns-edit-form input[type="text"] {
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+.dns-edit-form input[type="number"] {
+  width: 5.5rem;
+}
 
 pre.code {
   background: var(--bg);

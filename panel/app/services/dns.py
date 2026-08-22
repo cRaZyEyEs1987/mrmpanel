@@ -438,18 +438,285 @@ def zone_record_rows(zone: str) -> list[dict[str, Any]]:
                 content = str(record.get("content") or "").strip()
                 if not content:
                     continue
+                display = content
                 if rtype == "TXT":
                     chunks = re.findall(r'"([^"]*)"', content)
-                    content = "".join(chunks) if chunks else content.strip('"')
+                    display = "".join(chunks) if chunks else content.strip('"')
+                lock = record_lock_info(zone, name, rtype, display)
                 rows.append(
                     {
                         "name": name,
                         "type": rtype,
                         "ttl": ttl,
-                        "value": content,
+                        "value": display,
+                        "raw_value": content,
+                        "locked": lock["locked"],
+                        "lock_reason": lock["reason"],
                     }
                 )
     return sorted(rows, key=lambda row: (row["name"], row["type"], row["value"]))
+
+
+USER_EDITABLE_TYPES = frozenset({"A", "AAAA", "CNAME", "TXT", "SRV", "CAA"})
+
+
+def record_lock_info(
+    zone: str,
+    name: str,
+    rtype: str,
+    value: str,
+) -> dict[str, Any]:
+    """Return whether a record is panel-managed (mail / zone infrastructure)."""
+    zone = (zone or "").strip().rstrip(".").lower()
+    name = (name or "").strip().rstrip(".").lower()
+    rtype = (rtype or "").strip().upper()
+    value_l = (value or "").strip().strip('"').lower()
+
+    if rtype in {"SOA", "NS"}:
+        return {
+            "locked": True,
+            "reason": "Managed by the panel (zone infrastructure)",
+        }
+    if rtype == "MX":
+        return {
+            "locked": True,
+            "reason": "Mail MX — change via panel mail security only",
+        }
+    if rtype == "TXT":
+        if value_l.startswith("v=spf1"):
+            return {
+                "locked": True,
+                "reason": "SPF — change via panel mail security only",
+            }
+        if value_l.startswith("v=dmarc1") or name == f"_dmarc.{zone}" or name.startswith(
+            "_dmarc."
+        ):
+            return {
+                "locked": True,
+                "reason": "DMARC — change via panel mail security only",
+            }
+        if (
+            value_l.startswith("v=dkim1")
+            or "._domainkey." in name
+            or name.endswith("._domainkey")
+        ):
+            return {
+                "locked": True,
+                "reason": "DKIM — change via panel mail security only",
+            }
+    return {"locked": False, "reason": ""}
+
+
+def normalize_record_name(zone: str, name: str) -> str:
+    """Map @ / blank / relative labels to an FQDN inside the zone."""
+    zone = zone.strip().rstrip(".").lower()
+    label = (name or "").strip().rstrip(".").lower()
+    if not zone:
+        raise ValueError("Zone is required")
+    if not label or label in {"@", zone}:
+        return zone
+    if label.endswith(f".{zone}") or label == zone:
+        return label
+    # Reject escaping the zone
+    candidate = f"{label}.{zone}"
+    if candidate != zone and not candidate.endswith(f".{zone}"):
+        raise ValueError(f"Record name must be inside {zone}")
+    return candidate
+
+
+def _plain_txt(value: str) -> str:
+    value = (value or "").strip()
+    chunks = re.findall(r'"([^"]*)"', value)
+    if chunks:
+        return "".join(chunks)
+    return value.strip('"')
+
+
+def _pdns_txt_content(value: str) -> str:
+    plain = _plain_txt(value)
+    escaped = plain.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _content_for_type(rtype: str, value: str) -> str:
+    rtype = rtype.upper()
+    value = (value or "").strip()
+    if not value:
+        raise ValueError("Record value is required")
+    if rtype == "TXT":
+        return _pdns_txt_content(value)
+    if rtype == "A":
+        if not IPV4_RE.match(value):
+            raise ValueError(f"Invalid IPv4 address: {value}")
+        return value
+    if rtype == "AAAA":
+        if ":" not in value:
+            raise ValueError(f"Invalid IPv6 address: {value}")
+        return value
+    if rtype == "CNAME":
+        return value.rstrip(".") + "."
+    if rtype == "MX":
+        parts = value.split()
+        if len(parts) != 2:
+            raise ValueError(
+                "MX value must be: priority hostname (e.g. 10 mail.example.com)"
+            )
+        return f"{parts[0]} {parts[1].rstrip('.')}."
+    if rtype in {"SRV", "CAA"}:
+        return value
+    return value
+
+
+def _rrset_contents(zone: str, name: str, rtype: str) -> tuple[list[str], int]:
+    """Return (raw PowerDNS contents, ttl) for one RRset."""
+    zone = zone.strip().rstrip(".").lower()
+    name = name.strip().rstrip(".").lower()
+    rtype = rtype.upper()
+    zname = _fqdn(zone)
+    fqdn = _fqdn(name)
+    with _client() as client:
+        response = client.get(f"/servers/localhost/zones/{zname}")
+        response.raise_for_status()
+        for rrset in response.json().get("rrsets", []):
+            if rrset.get("name") == fqdn and str(rrset.get("type") or "").upper() == rtype:
+                ttl = int(rrset.get("ttl") or 3600)
+                contents = [
+                    str(record.get("content") or "").strip()
+                    for record in rrset.get("records") or []
+                    if not record.get("disabled") and str(record.get("content") or "").strip()
+                ]
+                return contents, ttl
+    return [], 3600
+
+
+def _same_record_value(rtype: str, left: str, right: str) -> bool:
+    if rtype == "TXT":
+        return _plain_txt(left).lower() == _plain_txt(right).lower()
+    return left.strip().rstrip(".").lower() == right.strip().rstrip(".").lower()
+
+
+def _assert_zone_hosted(zone: str) -> str:
+    zone = zone.strip().rstrip(".").lower()
+    if not zone_exists(zone):
+        raise ValueError(f"{zone} is not hosted on this server’s DNS")
+    return zone
+
+
+def add_zone_record(
+    zone: str,
+    name: str,
+    rtype: str,
+    value: str,
+    ttl: int = 3600,
+) -> dict[str, Any]:
+    """Add one user-editable record to a hosted zone."""
+    zone = _assert_zone_hosted(zone)
+    rtype = (rtype or "").strip().upper()
+    if rtype not in USER_EDITABLE_TYPES:
+        raise ValueError(
+            f"Type {rtype or '—'} cannot be added here. "
+            "Mail records (MX/SPF/DKIM/DMARC) are managed by the panel."
+        )
+    fq_name = normalize_record_name(zone, name)
+    content = _content_for_type(rtype, value)
+    display = _plain_txt(content) if rtype == "TXT" else content.rstrip(".")
+    lock = record_lock_info(zone, fq_name, rtype, display)
+    if lock["locked"]:
+        raise ValueError(lock["reason"])
+
+    existing, current_ttl = _rrset_contents(zone, fq_name, rtype)
+    for item in existing:
+        if _same_record_value(rtype, item, content):
+            raise ValueError("That record already exists")
+    ttl = max(60, min(int(ttl or current_ttl or 3600), 86400))
+    create_or_replace_zone(
+        zone,
+        [_rrset(fq_name, rtype, existing + [content], ttl=ttl)],
+    )
+    return {"name": fq_name, "type": rtype, "ttl": ttl, "value": display}
+
+
+def update_zone_record(
+    zone: str,
+    name: str,
+    rtype: str,
+    old_value: str,
+    new_value: str,
+    ttl: int | None = None,
+) -> dict[str, Any]:
+    """Replace one record value inside an RRset."""
+    zone = _assert_zone_hosted(zone)
+    rtype = (rtype or "").strip().upper()
+    fq_name = normalize_record_name(zone, name)
+    old_display = _plain_txt(old_value) if rtype == "TXT" else (old_value or "").strip()
+    lock = record_lock_info(zone, fq_name, rtype, old_display)
+    if lock["locked"]:
+        raise ValueError(lock["reason"])
+    if rtype not in USER_EDITABLE_TYPES:
+        raise ValueError(f"Type {rtype} cannot be edited here")
+
+    new_content = _content_for_type(rtype, new_value)
+    new_display = _plain_txt(new_content) if rtype == "TXT" else new_content.rstrip(".")
+    new_lock = record_lock_info(zone, fq_name, rtype, new_display)
+    if new_lock["locked"]:
+        raise ValueError(new_lock["reason"])
+
+    existing, current_ttl = _rrset_contents(zone, fq_name, rtype)
+    replaced = False
+    next_values: list[str] = []
+    for item in existing:
+        if not replaced and _same_record_value(rtype, item, old_value):
+            next_values.append(new_content)
+            replaced = True
+        else:
+            next_values.append(item)
+    if not replaced:
+        raise ValueError("Original record not found (it may have changed)")
+    use_ttl = max(60, min(int(ttl if ttl is not None else current_ttl or 3600), 86400))
+    create_or_replace_zone(
+        zone,
+        [_rrset(fq_name, rtype, next_values, ttl=use_ttl)],
+    )
+    return {"name": fq_name, "type": rtype, "ttl": use_ttl, "value": new_display}
+
+
+def delete_zone_record(
+    zone: str,
+    name: str,
+    rtype: str,
+    value: str,
+) -> None:
+    """Remove one record value from an RRset (or delete the RRset if empty)."""
+    zone = _assert_zone_hosted(zone)
+    rtype = (rtype or "").strip().upper()
+    fq_name = normalize_record_name(zone, name)
+    display = _plain_txt(value) if rtype == "TXT" else (value or "").strip()
+    lock = record_lock_info(zone, fq_name, rtype, display)
+    if lock["locked"]:
+        raise ValueError(lock["reason"])
+    if rtype not in USER_EDITABLE_TYPES:
+        raise ValueError(f"Type {rtype} cannot be deleted here")
+
+    existing, current_ttl = _rrset_contents(zone, fq_name, rtype)
+    kept = [item for item in existing if not _same_record_value(rtype, item, value)]
+    if len(kept) == len(existing):
+        raise ValueError("Record not found (it may have changed)")
+    if not kept:
+        create_or_replace_zone(
+            zone,
+            [
+                {
+                    "name": _fqdn(fq_name),
+                    "type": rtype,
+                    "changetype": "DELETE",
+                }
+            ],
+        )
+        return
+    create_or_replace_zone(
+        zone,
+        [_rrset(fq_name, rtype, kept, ttl=current_ttl or 3600)],
+    )
 
 
 def upsert_txt_record(

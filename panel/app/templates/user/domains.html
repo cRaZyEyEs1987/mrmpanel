@@ -72,49 +72,8 @@
 </table>
 
 {% if domain_list %}
-<section class="card-form dns-records">
-  <div class="records-head">
-    <div>
-      <h2>DNS records</h2>
-      <p class="muted">All authoritative records for your selected domain.</p>
-    </div>
-    <form method="get" action="/u/domains">
-      <label>Domain
-        <select name="domain" onchange="this.form.submit()">
-          {% for item in domain_list %}
-          <option value="{{ item.domain }}" {% if item.domain == record_domain %}selected{% endif %}>
-            {{ item.domain }}
-          </option>
-          {% endfor %}
-        </select>
-      </label>
-    </form>
-  </div>
-
-  {% if dns_records_error %}
-  <p class="alert error">Could not load DNS records: {{ dns_records_error }}</p>
-  {% elif dns_records_source == 'external' %}
-  <p class="alert info">
-    {{ record_domain }} uses external DNS. A DNS server cannot reliably list
-    every external record unless it hosts the zone.
-  </p>
-  {% else %}
-  <table class="data">
-    <thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Value</th></tr></thead>
-    <tbody>
-    {% for record in dns_record_rows %}
-      <tr>
-        <td><code>{{ record.name }}</code></td>
-        <td>{{ record.type }}</td>
-        <td>{{ record.ttl }}</td>
-        <td class="record-value"><code>{{ record.value }}</code></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="4" class="muted">No records found in this zone.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-</section>
+{% set records_action_base = "/u/domains" %}
+{% set show_record_owner = false %}
+{% include "partials/dns_records_editor.html" %}
 {% endif %}
 {% endblock %}
